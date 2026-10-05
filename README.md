@@ -50,6 +50,7 @@ Filtering is layered:
 5. Page scripts are injected on page finish, not on every progress tick. Playback state comes from HTML5 `play`, `pause`, `ended`, and throttled `timeupdate` events.
 6. YouTube compatibility allow-list. Media, `googlevideo.com`, player, browse, search, and heartbeat endpoints fail open so buffering is not broken.
 7. Multiple-window pop-ups are disabled on the WebView. `onCreateWindow` does not spawn another view.
+8. `YoutubePlayerAdDetector` tracks the active player only. It clicks YouTube's own Skip control when that control is actually shown, and ignores a permanent ad container, Open App, and Up Next. It does not reload the page or the video.
 
 A blocked request returns an empty response and increments the counter. If a rule would hit a playback-critical URL, the engine allows it. A failed list download keeps the previous cached copy and never crashes the app.
 
@@ -105,7 +106,7 @@ Issues and pull requests are welcome. Keep the blocker module independent of the
 - The app does not bypass DRM, sign-in, age gates, or paid content.
 - Background playback uses a foreground media service. It does not extract or rehost the stream. YouTube can still pause if the site rejects background play.
 - Picture-in-picture uses the activity window. The WebView is not paused while PiP or background playback is active.
-- Some ads are stitched into the media stream. Request blocking and cosmetic hiding cannot remove those without breaking playback.
+- Some ads are stitched into the media stream and cannot be told apart from normal video at the network layer. The player detector only uses visible player state and the page's own skip control. It does not remove every advertisement.
 - Subscriptions and accounts use YouTube's own session cookies inside the WebView.
 - Filter lists belong to their authors. See `NOTICE`.
 

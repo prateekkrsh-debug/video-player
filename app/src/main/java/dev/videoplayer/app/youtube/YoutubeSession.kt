@@ -14,7 +14,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import dev.videoplayer.app.blocker.BlockerEngine
+import dev.videoplayer.app.blocker.PlayerAdSignals
+import dev.videoplayer.app.blocker.YoutubePlayerAdDetector
 import dev.videoplayer.app.blocker.YoutubeCosmetic
 import dev.videoplayer.app.blocker.RequestContext
 import dev.videoplayer.app.downloads.DownloadPolicy
@@ -77,10 +78,18 @@ object YoutubeUrls {
     }
 }
 
-class VideoBridge(private val onState: (Boolean, Long, String) -> Unit) {
+class VideoBridge(
+    private val onState: (Boolean, Long, String) -> Unit,
+    private val onAd: (String, Int) -> Unit
+) {
     @android.webkit.JavascriptInterface
     fun onVideoState(playing: Boolean, seconds: Double, title: String) {
         onState(playing, (seconds * 1000).toLong(), title)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun onPlayerSignals(videoId: String, flags: Int) {
+        onAd(videoId, flags)
     }
 }
 
@@ -95,6 +104,8 @@ class YoutubeSession(
     private val appContext = context.applicationContext
     private var speed = 1f
     private var documentHost = "m.youtube.com"
+    private val adDetector = YoutubePlayerAdDetector()
+    private var watchdogOn = false
     var state = PageState()
         private set
 
@@ -115,11 +126,14 @@ class YoutubeSession(
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
         addJavascriptInterface(
-            VideoBridge { playing, position, title ->
-                state = state.copy(playing = playing, positionMs = position, title = title.ifBlank { state.title })
-                PlaybackController.update(playing, position, state.title)
-                host.onPageState(state)
-            },
+            VideoBridge(
+                { playing, position, title ->
+                    state = state.copy(playing = playing, positionMs = position, title = title.ifBlank { state.title })
+                    PlaybackController.update(playing, position, state.title)
+                    host.onPageState(state)
+                },
+                { videoId, flags -> onPlayerSignals(videoId, flags) }
+            ),
             "VPBridge"
         )
         webViewClient = FilteringClient()
@@ -184,6 +198,37 @@ class YoutubeSession(
         PlaybackController.detach(this)
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
+    }
+
+    private fun onPlayerSignals(videoId: String, flags: Int) {
+        val decision = adDetector.onSignals(
+            PlayerAdSignals(
+                videoId = videoId,
+                playerPresent = flags and 1 != 0,
+                adShowing = flags and 2 != 0,
+                adInterrupting = flags and 4 != 0,
+                overlayVisible = flags and 8 != 0,
+                adTextVisible = flags and 16 != 0,
+                countdownVisible = flags and 32 != 0,
+                skipButtonVisible = flags and 64 != 0,
+                adModulePresent = flags and 128 != 0
+            )
+        )
+        webView.post {
+            if (decision.clickSkip) {
+                webView.evaluateJavascript("window.__vpClickSkip&&window.__vpClickSkip()", null)
+            }
+            if (decision.watchdog != watchdogOn) {
+                watchdogOn = decision.watchdog
+                webView.evaluateJavascript("window.__vpWatchAd&&window.__vpWatchAd(${decision.watchdog})", null)
+            }
+            if (decision.hideAdChrome) {
+                webView.evaluateJavascript(
+                    "var p=document.querySelector('#movie_player,.html5-video-player');if(p){var n=p.querySelectorAll('.ytp-ad-player-overlay,.ytp-ad-image-overlay');for(var i=0;i<n.length;i++)n[i].style.setProperty('display','none','important');}",
+                    null
+                )
+            }
+        }
     }
 
     private fun publish() {
@@ -278,6 +323,7 @@ class YoutubeSession(
                   }, true);
                   window.__vpVis = true;
                 }
+                ${YoutubePlayerAdDetector.installScript()}
               } catch (e) {}
             })();
         """.trimIndent()
