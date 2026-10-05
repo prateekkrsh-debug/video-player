@@ -226,18 +226,45 @@ class YoutubeSession(
                 }
                 if (!window.__vpAds) {
                   var hideAds = function(){
-                    var nodes = document.querySelectorAll(
-                      '.ytp-ad-module,.ytp-ad-overlay-container,.ytp-ad-player-overlay,.video-ads,ytd-ad-slot-renderer,ytd-banner-promo-renderer,ytd-in-feed-ad-layout-renderer,ytd-companion-slot-renderer'
-                    );
+                    var selectors = [
+                      '.ytp-ad-module','.ytp-ad-overlay-container','.ytp-ad-player-overlay',
+                      '.video-ads','#player-ads','.ytp-ad-text','.ytp-ad-image-overlay',
+                      'ytd-ad-slot-renderer','ytd-banner-promo-renderer','ytd-in-feed-ad-layout-renderer',
+                      'ytd-companion-slot-renderer','ytd-display-ad-renderer','ytd-action-companion-ad-renderer',
+                      'ytd-promoted-sparkles-web-renderer','ytm-companion-slot','ytm-companion-ad-renderer',
+                      'ytm-promoted-sparkles-web-renderer','ytm-promoted-sparkles-text-search-renderer',
+                      'ytm-promoted-video-renderer','ytm-paid-content-overlay-renderer',
+                      '.ytm-companion-slot','.ytm-promoted-sparkles-click-wrapper',
+                      '.ytd-mealbar-promo-renderer','#masthead-ad'
+                    ];
+                    var nodes = document.querySelectorAll(selectors.join(','));
                     for (var i = 0; i < nodes.length; i++) {
                       nodes[i].style.setProperty('display', 'none', 'important');
                     }
+                    var cards = document.querySelectorAll('span, div, yt-formatted-string, button');
+                    for (var j = 0; j < cards.length; j++) {
+                      var text = (cards[j].innerText || '').trim();
+                      if (text !== 'Sponsored' && text.indexOf('Sponsored') !== 0) continue;
+                      if (text.length > 90) continue;
+                      var card = cards[j];
+                      for (var depth = 0; depth < 8 && card && card !== document.body; depth++) {
+                        var h = card.offsetHeight || 0;
+                        if (h > 36 && h < 320) {
+                          card.style.setProperty('display', 'none', 'important');
+                          break;
+                        }
+                        card = card.parentElement;
+                      }
+                    }
+                    var skip = document.querySelector('.ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern');
+                    if (skip) skip.click();
                   };
                   hideAds();
                   window.__vpAds = new MutationObserver(hideAds);
                   if (document.documentElement) {
                     window.__vpAds.observe(document.documentElement, {childList: true, subtree: true});
                   }
+                  setInterval(hideAds, 700);
                 }
               } catch (e) {}
             })();

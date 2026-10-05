@@ -37,11 +37,12 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1.0
-          name: Video Player 1.1.0
+          tag_name: v1.2.0
+          name: Video Player 1.2.0
           body: |
             Debug APK for sideloading. No Android Studio required.
-            Enable install from unknown sources, then open video-player-debug.apk.
+            This build hides mobile YouTube sponsored cards and player ad slots.
+            Enable install from unknown sources, then open app-debug.apk.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true
           make_latest: true

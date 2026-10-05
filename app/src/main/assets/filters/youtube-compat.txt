@@ -19,6 +19,17 @@ youtube.com##.video-ads
 youtube.com###player-ads
 youtube.com##.ytp-ad-skip-button-container
 m.youtube.com##.ytp-ad-module
+m.youtube.com##ytm-companion-slot
+m.youtube.com##ytm-companion-ad-renderer
+m.youtube.com##ytm-promoted-sparkles-web-renderer
+m.youtube.com##ytm-promoted-sparkles-text-search-renderer
+m.youtube.com##ytm-promoted-video-renderer
+m.youtube.com##ytm-paid-content-overlay-renderer
+m.youtube.com##.ytm-companion-slot
+m.youtube.com##.ytm-promoted-sparkles-click-wrapper
+youtube.com##ytm-companion-slot
+youtube.com##ytm-companion-ad-renderer
+youtube.com##.ytp-ad-image-overlay
 youtube.com##ytd-ad-slot-renderer
 ||youtube.com/get_midroll_
 ||youtube.com/*/ad_status
