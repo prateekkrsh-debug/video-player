@@ -25,11 +25,15 @@ import dev.videoplayer.app.player.PlaybackService
 import dev.videoplayer.app.ui.VideoPlayerRoot
 import dev.videoplayer.app.ui.theme.VideoPlayerTheme
 import dev.videoplayer.app.youtube.YoutubeUrls
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     val container by lazy { (application as VideoPlayerApp).container }
+    private var pipEnabled = true
+    private var backgroundEnabled = true
+    private var enteringPip = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,6 +49,7 @@ class MainActivity : ComponentActivity() {
         }
         handleIntent(intent)
         requestNotificationPermission()
+        refreshPlaybackPrefs()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -55,12 +60,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (shouldEnterPip()) enterPip()
+        if (shouldEnterPip()) {
+            enteringPip = true
+            enterPip()
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        if (isInPictureInPictureMode) return
+        if (isInPictureInPictureMode || enteringPip) return
         if (shouldBackground()) {
             PlaybackController.holdInBackground(true)
             PlaybackService.start(this)
@@ -69,19 +77,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        enteringPip = false
+        if (isInPictureInPictureMode) return
         PlaybackController.holdInBackground(false)
         PlaybackService.stop(this)
-        updateAutoPip()
+        refreshPlaybackPrefs()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         pipMode.value = isInPictureInPictureMode
-        if (!isInPictureInPictureMode && !hasWindowFocus()) {
-            if (shouldBackground()) {
-                PlaybackController.holdInBackground(true)
-                PlaybackService.start(this)
-            }
+        enteringPip = false
+        if (!isInPictureInPictureMode && !hasWindowFocus() && shouldBackground()) {
+            PlaybackController.holdInBackground(true)
+            PlaybackService.start(this)
         }
     }
 
@@ -92,7 +101,10 @@ class MainActivity : ComponentActivity() {
     }
 
     fun enterPip() {
+        if (!pipEnabled || !PlaybackController.playing.value) return
+        enteringPip = true
         val params = pipParams(autoEnter = false)
+        setPictureInPictureParams(params)
         enterPictureInPictureMode(params)
     }
 
@@ -108,14 +120,19 @@ class MainActivity : ComponentActivity() {
         return builder.build()
     }
 
-    private fun shouldEnterPip(): Boolean {
-        val settings = runBlocking { container.settings.current() }
-        return settings.pipEnabled && PlaybackController.playing.value && !isInPictureInPictureMode
-    }
+    private fun shouldEnterPip(): Boolean =
+        pipEnabled && PlaybackController.playing.value && !isInPictureInPictureMode
 
-    private fun shouldBackground(): Boolean {
-        val settings = runBlocking { container.settings.current() }
-        return settings.backgroundPlayback && PlaybackController.playing.value
+    private fun shouldBackground(): Boolean =
+        backgroundEnabled && PlaybackController.playing.value
+
+    private fun refreshPlaybackPrefs() {
+        lifecycleScope.launch {
+            val settings = container.settings.current()
+            pipEnabled = settings.pipEnabled
+            backgroundEnabled = settings.backgroundPlayback
+            updateAutoPip()
+        }
     }
 
     private fun requestNotificationPermission() {

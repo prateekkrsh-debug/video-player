@@ -15,6 +15,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import dev.videoplayer.app.blocker.BlockerEngine
+import dev.videoplayer.app.blocker.YoutubeCosmetic
 import dev.videoplayer.app.blocker.RequestContext
 import dev.videoplayer.app.downloads.DownloadPolicy
 import dev.videoplayer.app.utils.Hosts
@@ -104,7 +105,7 @@ class YoutubeSession(
         settings.mediaPlaybackRequiresUserGesture = false
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.setSupportMultipleWindows(true)
+        settings.setSupportMultipleWindows(false)
         settings.javaScriptCanOpenWindowsAutomatically = false
         settings.userAgentString = settings.userAgentString.replace("; wv", "")
         settings.loadsImagesAutomatically = true
@@ -190,10 +191,14 @@ class YoutubeSession(
         host.onPageState(state)
     }
 
+    private var hooksInstalledFor = ""
+
     private fun applyPageScripts() {
-        val css = engine.cosmeticCss(documentHost)
+        val css = (engine.cosmeticCss(documentHost) + YoutubeCosmetic.styleBlock())
             .replace("\\", "\\\\")
             .replace("'", "\\'")
+        val installHooks = hooksInstalledFor != state.url
+        if (installHooks) hooksInstalledFor = state.url
         val js = """
             (function(){
               try {
@@ -204,15 +209,64 @@ class YoutubeSession(
                   (document.documentElement || document.head || document.body).appendChild(style);
                 }
                 style.textContent = '$css';
-                var v = document.querySelector('video');
-                if (v) { v.playbackRate = $speed; }
-                if (!window.__vpTimer) {
-                  window.__vpTimer = setInterval(function(){
-                    var video = document.querySelector('video');
-                    if (video && window.VPBridge) {
-                      VPBridge.onVideoState(!video.paused && !video.ended, video.currentTime || 0, document.title || '');
+                if (!$installHooks) return;
+                var selectors = '${YoutubeCosmetic.selectors.joinToString(",")}';
+                var hide = function(node){
+                  if (!node || node.nodeType !== 1) return;
+                  if (node.matches && node.matches(selectors)) node.style.setProperty('display','none','important');
+                  if (node.querySelectorAll) {
+                    var found = node.querySelectorAll(selectors);
+                    for (var i = 0; i < found.length; i++) found[i].style.setProperty('display','none','important');
+                  }
+                };
+                hide(document.documentElement);
+                if (!window.__vpAds) {
+                  window.__vpAds = new MutationObserver(function(mutations){
+                    for (var i = 0; i < mutations.length; i++) {
+                      var added = mutations[i].addedNodes;
+                      for (var j = 0; j < added.length; j++) hide(added[j]);
                     }
-                  }, 1000);
+                  });
+                  if (document.documentElement) {
+                    window.__vpAds.observe(document.documentElement, {childList:true, subtree:true});
+                  }
+                }
+                var report = function(video){
+                  if (!video || !window.VPBridge) return;
+                  VPBridge.onVideoState(!video.paused && !video.ended, video.currentTime || 0, document.title || '');
+                };
+                var bind = function(video){
+                  if (!video || video.__vpBound) return;
+                  video.__vpBound = true;
+                  video.playbackRate = $speed;
+                  ['play','pause','ended','emptied'].forEach(function(name){
+                    video.addEventListener(name, function(){ report(video); });
+                  });
+                  video.addEventListener('timeupdate', function(){
+                    var now = Date.now();
+                    if (now - (video.__vpAt || 0) < 2000) return;
+                    video.__vpAt = now;
+                    report(video);
+                  });
+                  report(video);
+                };
+                bind(document.querySelector('video'));
+                if (!window.__vpWatch) {
+                  window.__vpWatch = new MutationObserver(function(mutations){
+                    for (var i = 0; i < mutations.length; i++) {
+                      var added = mutations[i].addedNodes;
+                      for (var j = 0; j < added.length; j++) {
+                        var node = added[j];
+                        if (!node || node.nodeType !== 1) continue;
+                        if (node.tagName === 'VIDEO') bind(node);
+                        else if (node.querySelectorAll) {
+                          var videos = node.querySelectorAll('video');
+                          for (var k = 0; k < videos.length; k++) bind(videos[k]);
+                        }
+                      }
+                    }
+                  });
+                  window.__vpWatch.observe(document.documentElement, {childList:true, subtree:true});
                 }
                 if (!window.__vpVis) {
                   window.__vpHold = false;
@@ -223,48 +277,6 @@ class YoutubeSession(
                     if (video && video.paused) video.play().catch(function(){});
                   }, true);
                   window.__vpVis = true;
-                }
-                if (!window.__vpAds) {
-                  var hideAds = function(){
-                    var selectors = [
-                      '.ytp-ad-module','.ytp-ad-overlay-container','.ytp-ad-player-overlay',
-                      '.video-ads','#player-ads','.ytp-ad-text','.ytp-ad-image-overlay',
-                      'ytd-ad-slot-renderer','ytd-banner-promo-renderer','ytd-in-feed-ad-layout-renderer',
-                      'ytd-companion-slot-renderer','ytd-display-ad-renderer','ytd-action-companion-ad-renderer',
-                      'ytd-promoted-sparkles-web-renderer','ytm-companion-slot','ytm-companion-ad-renderer',
-                      'ytm-promoted-sparkles-web-renderer','ytm-promoted-sparkles-text-search-renderer',
-                      'ytm-promoted-video-renderer','ytm-paid-content-overlay-renderer',
-                      '.ytm-companion-slot','.ytm-promoted-sparkles-click-wrapper',
-                      '.ytd-mealbar-promo-renderer','#masthead-ad'
-                    ];
-                    var nodes = document.querySelectorAll(selectors.join(','));
-                    for (var i = 0; i < nodes.length; i++) {
-                      nodes[i].style.setProperty('display', 'none', 'important');
-                    }
-                    var cards = document.querySelectorAll('span, div, yt-formatted-string, button');
-                    for (var j = 0; j < cards.length; j++) {
-                      var text = (cards[j].innerText || '').trim();
-                      if (text !== 'Sponsored' && text.indexOf('Sponsored') !== 0) continue;
-                      if (text.length > 90) continue;
-                      var card = cards[j];
-                      for (var depth = 0; depth < 8 && card && card !== document.body; depth++) {
-                        var h = card.offsetHeight || 0;
-                        if (h > 36 && h < 320) {
-                          card.style.setProperty('display', 'none', 'important');
-                          break;
-                        }
-                        card = card.parentElement;
-                      }
-                    }
-                    var skip = document.querySelector('.ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern');
-                    if (skip) skip.click();
-                  };
-                  hideAds();
-                  window.__vpAds = new MutationObserver(hideAds);
-                  if (document.documentElement) {
-                    window.__vpAds.observe(document.documentElement, {childList: true, subtree: true});
-                  }
-                  setInterval(hideAds, 700);
                 }
               } catch (e) {}
             })();
@@ -316,6 +328,7 @@ class YoutubeSession(
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             documentHost = Hosts.hostOf(url).ifBlank { documentHost }
+            hooksInstalledFor = ""
             state = state.copy(url = url, loading = true, progress = 10, error = null)
             publish()
         }
@@ -349,7 +362,6 @@ class YoutubeSession(
     private inner class Chrome : WebChromeClient() {
         override fun onProgressChanged(view: WebView, newProgress: Int) {
             state = state.copy(progress = newProgress, loading = newProgress < 100)
-            if (newProgress > 40) applyPageScripts()
             publish()
         }
 
@@ -373,13 +385,7 @@ class YoutubeSession(
             isDialog: Boolean,
             isUserGesture: Boolean,
             resultMsg: android.os.Message
-        ): Boolean {
-            if (engine.popupsEnabled) return false
-            val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
-            transport.webView = webView
-            resultMsg.sendToTarget()
-            return true
-        }
+        ): Boolean = false
 
         override fun onJsAlert(view: WebView, url: String, message: String, result: JsResult): Boolean {
             result.cancel()

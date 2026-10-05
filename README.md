@@ -11,8 +11,7 @@ Repository: https://github.com/prateekkrsh-debug/video-player
 - Opens YouTube home, search, subscriptions, trending, and library inside a controlled browser layer.
 - Search screen with YouTube suggestion queries, then results on the home surface.
 - Watch pages, fullscreen via the player chrome, portrait and landscape, and picture-in-picture.
-- Leaving a playing video enters picture-in-picture automatically, like Brave. If PiP is off, or you leave the floating window, audio continues in the background with a media notification (play, pause, skip 10 seconds).
-- Back, forward, and reload, plus a local history of opened YouTube pages.
+- Leaving a playing video enters picture-in-picture. Leaving that window keeps the page player alive through a foreground media service and notification controls.
 - Back, forward, and reload, plus a local history of opened YouTube pages.
 - Handles `https://youtube.com`, `youtu.be`, and `vnd.youtube` links.
 - Light, dark, and system themes.
@@ -34,6 +33,7 @@ app/src/main/java/dev/videoplayer/app/
   history/       SQLite history
   networking/    Suggestion client
   downloads/     Refuses YouTube media; other files go to DownloadManager
+  player/        Foreground media service and session bridge
   utils/         Host and resource-type helpers
 ```
 
@@ -46,8 +46,10 @@ Filtering is layered:
 1. Network interception in `WebViewClient.shouldInterceptRequest`.
 2. URL and domain rules in Adblock Plus / EasyList syntax.
 3. Tracker lists, toggled separately from general ad lists.
-4. Cosmetic CSS injected for known ad slots. Scriptlet and redirect rules are ignored.
-5. YouTube compatibility allow-list. Media, `googlevideo.com`, player, browse, and search endpoints fail open.
+4. Cosmetic CSS for known ad slots, installed once per page. A MutationObserver hides matching nodes as they are added. There is no interval scan and no full-document text walk.
+5. Page scripts are injected on page finish, not on every progress tick. Playback state comes from HTML5 `play`, `pause`, `ended`, and throttled `timeupdate` events.
+6. YouTube compatibility allow-list. Media, `googlevideo.com`, player, browse, search, and heartbeat endpoints fail open so buffering is not broken.
+7. Multiple-window pop-ups are disabled on the WebView. `onCreateWindow` does not spawn another view.
 
 A blocked request returns an empty response and increments the counter. If a rule would hit a playback-critical URL, the engine allows it. A failed list download keeps the previous cached copy and never crashes the app.
 
@@ -101,7 +103,8 @@ Issues and pull requests are welcome. Keep the blocker module independent of the
 - This is an independent client. YouTube is a trademark of Google. The app loads YouTube's website; it is not affiliated with Google.
 - Ad blocking can conflict with YouTube's terms. Users are responsible for how they use it.
 - The app does not bypass DRM, sign-in, age gates, or paid content.
-- Background playback keeps YouTube's page player running. It does not extract or rehost the stream. YouTube can still pause if the site rejects background play; the hold flag asks the page to stay visible.
+- Background playback uses a foreground media service. It does not extract or rehost the stream. YouTube can still pause if the site rejects background play.
+- Picture-in-picture uses the activity window. The WebView is not paused while PiP or background playback is active.
 - Some ads are stitched into the media stream. Request blocking and cosmetic hiding cannot remove those without breaking playback.
 - Subscriptions and accounts use YouTube's own session cookies inside the WebView.
 - Filter lists belong to their authors. See `NOTICE`.

@@ -56,6 +56,7 @@ class PlaybackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startInForeground(buildNotification())
         when (intent?.action) {
             ACTION_PLAY -> PlaybackController.play()
             ACTION_PAUSE -> PlaybackController.pause()
@@ -71,6 +72,11 @@ class PlaybackService : Service() {
         }
         refresh()
         return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (!PlaybackController.playing.value) stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
