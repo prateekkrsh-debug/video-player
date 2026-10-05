@@ -141,6 +141,7 @@ class YoutubeSession(
             else -> "void 0"
         }
         webView.post { webView.evaluateJavascript(js, null) }
+        Unit
     }
 
     fun holdInBackground(hold: Boolean) {
@@ -280,7 +281,6 @@ class YoutubeSession(
                 return true
             }
             if (!YoutubeUrls.isInAppHost(host)) {
-                host.onPageState(state)
                 this@YoutubeSession.host.openExternal(uri.toString())
                 return true
             }

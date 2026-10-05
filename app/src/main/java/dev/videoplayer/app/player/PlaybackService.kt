@@ -32,11 +32,21 @@ class PlaybackService : Service() {
         createChannel()
         val session = MediaSessionCompat(this, "video-player").apply {
             setCallback(object : MediaSessionCompat.Callback() {
-                override fun onPlay() = PlaybackController.play()
-                override fun onPause() = PlaybackController.pause()
-                override fun onSkipToNext() = PlaybackController.seekForward()
-                override fun onSkipToPrevious() = PlaybackController.seekBack()
-                override fun onStop() = stopSelf()
+                override fun onPlay() {
+                    PlaybackController.play()
+                }
+                override fun onPause() {
+                    PlaybackController.pause()
+                }
+                override fun onSkipToNext() {
+                    PlaybackController.seekForward()
+                }
+                override fun onSkipToPrevious() {
+                    PlaybackController.seekBack()
+                }
+                override fun onStop() {
+                    stopSelf()
+                }
             })
             isActive = true
         }
