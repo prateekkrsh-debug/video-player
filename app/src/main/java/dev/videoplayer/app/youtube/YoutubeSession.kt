@@ -18,6 +18,7 @@ import dev.videoplayer.app.blocker.BlockerEngine
 import dev.videoplayer.app.blocker.RequestContext
 import dev.videoplayer.app.downloads.DownloadPolicy
 import dev.videoplayer.app.utils.Hosts
+import dev.videoplayer.app.player.PlaybackController
 import java.io.ByteArrayInputStream
 
 data class PageState(
@@ -115,6 +116,7 @@ class YoutubeSession(
         addJavascriptInterface(
             VideoBridge { playing, position, title ->
                 state = state.copy(playing = playing, positionMs = position, title = title.ifBlank { state.title })
+                PlaybackController.update(playing, position, state.title)
                 host.onPageState(state)
             },
             "VPBridge"
@@ -123,6 +125,31 @@ class YoutubeSession(
         webChromeClient = Chrome()
         setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
             DownloadPolicy.handle(appContext, url, userAgent, contentDisposition, mimeType)
+        }
+    }
+
+    init {
+        PlaybackController.attach(this)
+    }
+
+    fun control(action: String) {
+        val js = when (action) {
+            "play" -> "try{var v=document.querySelector('video');if(v)v.play();}catch(e){}"
+            "pause" -> "try{var v=document.querySelector('video');if(v)v.pause();}catch(e){}"
+            "forward" -> "try{var v=document.querySelector('video');if(v)v.currentTime=Math.min((v.duration||0),v.currentTime+10);}catch(e){}"
+            "back" -> "try{var v=document.querySelector('video');if(v)v.currentTime=Math.max(0,v.currentTime-10);}catch(e){}"
+            else -> "void 0"
+        }
+        webView.post { webView.evaluateJavascript(js, null) }
+    }
+
+    fun holdInBackground(hold: Boolean) {
+        webView.post {
+            webView.onResume()
+            webView.evaluateJavascript(
+                "window.__vpHold=$hold;try{var v=document.querySelector('video');if($hold&&v&&v.paused)v.play();}catch(e){}",
+                null
+            )
         }
     }
 
@@ -152,6 +179,7 @@ class YoutubeSession(
     }
 
     fun release() {
+        PlaybackController.detach(this)
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
     }
@@ -183,7 +211,32 @@ class YoutubeSession(
                     if (video && window.VPBridge) {
                       VPBridge.onVideoState(!video.paused && !video.ended, video.currentTime || 0, document.title || '');
                     }
-                  }, 1500);
+                  }, 1000);
+                }
+                if (!window.__vpVis) {
+                  window.__vpHold = false;
+                  document.addEventListener('visibilitychange', function(e){
+                    if (!window.__vpHold) return;
+                    e.stopImmediatePropagation();
+                    var video = document.querySelector('video');
+                    if (video && video.paused) video.play().catch(function(){});
+                  }, true);
+                  window.__vpVis = true;
+                }
+                if (!window.__vpAds) {
+                  var hideAds = function(){
+                    var nodes = document.querySelectorAll(
+                      '.ytp-ad-module,.ytp-ad-overlay-container,.ytp-ad-player-overlay,.video-ads,ytd-ad-slot-renderer,ytd-banner-promo-renderer,ytd-in-feed-ad-layout-renderer,ytd-companion-slot-renderer'
+                    );
+                    for (var i = 0; i < nodes.length; i++) {
+                      nodes[i].style.setProperty('display', 'none', 'important');
+                    }
+                  };
+                  hideAds();
+                  window.__vpAds = new MutationObserver(hideAds);
+                  if (document.documentElement) {
+                    window.__vpAds.observe(document.documentElement, {childList: true, subtree: true});
+                  }
                 }
               } catch (e) {}
             })();

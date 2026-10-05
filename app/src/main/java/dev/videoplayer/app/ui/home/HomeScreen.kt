@@ -42,9 +42,11 @@ fun HomeScreen(
     resumeTitle: String,
     resumeUrl: String,
     onOpen: (String) -> Unit,
-    onPip: () -> Unit
+    onPip: () -> Unit,
+    showChrome: Boolean = true
 ) {
     Column(Modifier.fillMaxSize()) {
+        if (showChrome) {
         Surface(tonalElevation = 2.dp) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -92,8 +94,9 @@ fun HomeScreen(
                     }
                 }
             }
+            }
         }
-        if (page.loading) {
+        if (showChrome && page.loading) {
             LinearProgressIndicator(progress = { page.progress / 100f }, modifier = Modifier.fillMaxWidth())
         }
         BoxBrowser(session, page, onOpen)

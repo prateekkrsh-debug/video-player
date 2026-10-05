@@ -129,6 +129,17 @@ fun SettingsScreen(session: YoutubeSession) {
         Toggle("Picture-in-picture", settings.pipEnabled) {
             scope.launch { app.container.settings.update { s -> s.copy(pipEnabled = it) } }
         }
+        Text(
+            "Leaves the video in a floating window when you switch apps, like Brave.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Toggle("Background playback", settings.backgroundPlayback) {
+            scope.launch { app.container.settings.update { s -> s.copy(backgroundPlayback = it) } }
+        }
+        Text(
+            "Keeps YouTube's own player running with a media notification after you leave. Audio is not extracted or downloaded.",
+            style = MaterialTheme.typography.bodySmall
+        )
         Toggle("Landscape on fullscreen", settings.fullscreenLandscape) {
             scope.launch { app.container.settings.update { s -> s.copy(fullscreenLandscape = it) } }
         }

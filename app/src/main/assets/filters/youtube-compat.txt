@@ -17,7 +17,13 @@ youtube.com##.ytp-ad-text
 youtube.com##.ytp-ad-player-overlay
 youtube.com##.video-ads
 youtube.com###player-ads
-youtube.com##.ytd-mealbar-promo-renderer
+youtube.com##.ytp-ad-skip-button-container
+m.youtube.com##.ytp-ad-module
+youtube.com##ytd-ad-slot-renderer
+||youtube.com/get_midroll_
+||youtube.com/*/ad_status
+||static.doubleclick.net^
+
 youtube.com##ytd-popup-container
 ||ads.youtube.com^
 ||youtube.com/api/stats/ads

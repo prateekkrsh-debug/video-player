@@ -10,7 +10,9 @@ Repository: https://github.com/prateekkrsh-debug/video-player
 
 - Opens YouTube home, search, subscriptions, trending, and library inside a controlled browser layer.
 - Search screen with YouTube suggestion queries, then results on the home surface.
-- Watch pages, fullscreen via the player chrome, portrait and landscape, and picture-in-picture where Android allows it.
+- Watch pages, fullscreen via the player chrome, portrait and landscape, and picture-in-picture.
+- Leaving a playing video enters picture-in-picture automatically, like Brave. If PiP is off, or you leave the floating window, audio continues in the background with a media notification (play, pause, skip 10 seconds).
+- Back, forward, and reload, plus a local history of opened YouTube pages.
 - Back, forward, and reload, plus a local history of opened YouTube pages.
 - Handles `https://youtube.com`, `youtu.be`, and `vnd.youtube` links.
 - Light, dark, and system themes.
@@ -99,8 +101,8 @@ Issues and pull requests are welcome. Keep the blocker module independent of the
 - This is an independent client. YouTube is a trademark of Google. The app loads YouTube's website; it is not affiliated with Google.
 - Ad blocking can conflict with YouTube's terms. Users are responsible for how they use it.
 - The app does not bypass DRM, sign-in, age gates, or paid content.
-- Background playback is not implemented. WebView media generally stops when the activity is backgrounded, and this project does not extract streams to play them elsewhere.
-- Some ads are stitched into the media stream. Request blocking cannot remove those without breaking playback, so they are left alone.
+- Background playback keeps YouTube's page player running. It does not extract or rehost the stream. YouTube can still pause if the site rejects background play; the hold flag asks the page to stay visible.
+- Some ads are stitched into the media stream. Request blocking and cosmetic hiding cannot remove those without breaking playback.
 - Subscriptions and accounts use YouTube's own session cookies inside the WebView.
 - Filter lists belong to their authors. See `NOTICE`.
 

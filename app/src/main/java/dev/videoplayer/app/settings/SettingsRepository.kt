@@ -22,6 +22,7 @@ data class AppSettings(
     val blockPopups: Boolean = true,
     val cosmeticEnabled: Boolean = true,
     val pipEnabled: Boolean = true,
+    val backgroundPlayback: Boolean = true,
     val autoplay: Boolean = false,
     val theme: String = "system",
     val playbackSpeed: Float = 1f,
@@ -41,6 +42,7 @@ class SettingsRepository(private val context: Context) {
         val popups = booleanPreferencesKey("block_popups")
         val cosmetic = booleanPreferencesKey("cosmetic")
         val pip = booleanPreferencesKey("pip")
+        val background = booleanPreferencesKey("background_playback")
         val autoplay = booleanPreferencesKey("autoplay")
         val theme = stringPreferencesKey("theme")
         val speed = floatPreferencesKey("speed")
@@ -67,6 +69,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.popups] = next.blockPopups
             prefs[Keys.cosmetic] = next.cosmeticEnabled
             prefs[Keys.pip] = next.pipEnabled
+            prefs[Keys.background] = next.backgroundPlayback
             prefs[Keys.autoplay] = next.autoplay
             prefs[Keys.theme] = next.theme
             prefs[Keys.speed] = next.playbackSpeed
@@ -88,6 +91,7 @@ class SettingsRepository(private val context: Context) {
             blockPopups = this[Keys.popups] ?: true,
             cosmeticEnabled = this[Keys.cosmetic] ?: true,
             pipEnabled = this[Keys.pip] ?: true,
+            backgroundPlayback = this[Keys.background] ?: true,
             autoplay = this[Keys.autoplay] ?: false,
             theme = this[Keys.theme] ?: "system",
             playbackSpeed = this[Keys.speed] ?: 1f,

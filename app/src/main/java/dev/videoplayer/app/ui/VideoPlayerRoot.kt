@@ -94,8 +94,15 @@ fun VideoPlayerRoot(activity: MainActivity) {
         )
     }
 
+    val inPip by MainActivity.pipMode.collectAsStateWithLifecycle()
+
     DisposableEffect(settings.playbackSpeed) {
         session.setPlaybackSpeed(settings.playbackSpeed)
+        onDispose { }
+    }
+
+    DisposableEffect(page.playing, settings.pipEnabled) {
+        activity.updateAutoPip()
         onDispose { }
     }
 
@@ -126,7 +133,7 @@ fun VideoPlayerRoot(activity: MainActivity) {
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = {
-                if (customView == null) {
+                if (customView == null && !inPip) {
                     NavigationBar {
                         tabs.forEach { tab ->
                             NavigationBarItem(
@@ -159,7 +166,7 @@ fun VideoPlayerRoot(activity: MainActivity) {
             NavHost(
                 navController = nav,
                 startDestination = "home",
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.padding(if (inPip) androidx.compose.foundation.layout.PaddingValues() else padding)
             ) {
                 composable("home") {
                     HomeScreen(
@@ -174,7 +181,8 @@ fun VideoPlayerRoot(activity: MainActivity) {
                         },
                         onPip = {
                             if (settings.pipEnabled) activity.enterPip()
-                        }
+                        },
+                        showChrome = !inPip
                     )
                 }
                 composable("search") {
