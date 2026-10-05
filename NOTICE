@@ -1,0 +1,11 @@
+Filter list attribution
+
+This application can download and apply community filter lists. Those lists
+are not part of the Apache-2.0 grant for the app source.
+
+- EasyList and EasyPrivacy: EasyList community, https://easylist.to/
+- Peter Lowe's Ad and tracking server list: https://pgl.yoyo.org/adservers/
+- AdGuard Mobile Ads and Tracking Protection: AdGuard, https://adguard.com/en/filters.html
+
+Bundled seed lists in app/src/main/assets/filters are maintained with this
+repository so blocking still works before the first update.
