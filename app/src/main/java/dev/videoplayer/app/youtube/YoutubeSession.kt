@@ -14,6 +14,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import dev.videoplayer.app.blocker.BlockerEngine
 import dev.videoplayer.app.blocker.PlayerAdSignals
 import dev.videoplayer.app.blocker.YoutubePlayerAdDetector
 import dev.videoplayer.app.blocker.YoutubeCosmetic
