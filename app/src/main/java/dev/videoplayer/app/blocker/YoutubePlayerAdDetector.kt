@@ -13,13 +13,15 @@ class YoutubePlayerAdDetector {
     private var skipAttemptedForEpisode = false
 
     fun onSignals(signals: PlayerAdSignals): AdDecision {
-        if (signals.videoId.isNotBlank() && signals.videoId != videoId) {
+        var reset = false
+        if (signals.videoId.isNotBlank() && videoId.isNotBlank() && signals.videoId != videoId) {
             videoId = signals.videoId
             state = YoutubeAdState.NORMAL
             skipAttemptedForEpisode = false
-            return AdDecision(state = YoutubeAdState.NORMAL, reset = true)
+            reset = true
+        } else if (signals.videoId.isNotBlank()) {
+            videoId = signals.videoId
         }
-        if (signals.videoId.isNotBlank()) videoId = signals.videoId
 
         val active = isActiveAd(signals)
         if (!active) {
@@ -28,7 +30,7 @@ class YoutubePlayerAdDetector {
                 state == YoutubeAdState.AD_SKIP_AVAILABLE
             skipAttemptedForEpisode = false
             state = if (finished) YoutubeAdState.AD_FINISHED else YoutubeAdState.NORMAL
-            return AdDecision(state = state)
+            return AdDecision(state = state, reset = reset)
         }
 
         if (signals.skipButtonVisible && !skipAttemptedForEpisode) {
@@ -38,7 +40,8 @@ class YoutubePlayerAdDetector {
                 state = state,
                 clickSkip = true,
                 hideAdChrome = true,
-                watchdog = true
+                watchdog = true,
+                reset = reset
             )
         }
         state = if (signals.countdownVisible && !signals.skipButtonVisible) {
@@ -46,7 +49,7 @@ class YoutubePlayerAdDetector {
         } else {
             YoutubeAdState.AD_DETECTED
         }
-        return AdDecision(state = state, hideAdChrome = true, watchdog = true)
+        return AdDecision(state = state, hideAdChrome = true, watchdog = true, reset = reset)
     }
 
     fun isActiveAd(signals: PlayerAdSignals): Boolean {

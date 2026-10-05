@@ -75,7 +75,7 @@ class YoutubePlayerAdDetectorTest {
             YoutubeAdFixtures.signals(YoutubeAdFixtures.ACTIVE_AD).copy(videoId = "next")
         )
         assertTrue(next.reset)
-        assertEquals(YoutubeAdState.NORMAL, next.state)
+        assertEquals(YoutubeAdState.AD_DETECTED, next.state)
         assertEquals("next", detector.videoId)
     }
 
