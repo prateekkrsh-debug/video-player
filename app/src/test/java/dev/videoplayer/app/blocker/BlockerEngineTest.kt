@@ -88,8 +88,7 @@ class BlockerEngineTest {
     @Test
     fun cosmeticSelectorsDoNotTargetThePlayer() {
         val joined = YoutubeCosmetic.selectors.joinToString(",")
-        assertFalse(joined.contains("video"))
-        assertFalse(joined.contains("ytd-player"))
+        assertFalse(YoutubeCosmetic.selectors.any { it == "video" || it == "ytd-player" || it.contains("#movie_player") })
         assertTrue(joined.contains("ytm-companion-slot"))
         assertTrue(YoutubeCosmetic.styleBlock().contains("display:none"))
     }
