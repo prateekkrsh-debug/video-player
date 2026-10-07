@@ -212,6 +212,10 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                     }
             )
         }
+        if (gestureSide != null && !controls) {
+            ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
+            ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeOff)
+        }
         if (controls || locked) {
             PlayerChrome(
                 landscape = landscape,
@@ -358,10 +362,8 @@ private fun PlayerChrome(
                 Spacer(Modifier.width(18.dp))
                 RoundButton(onNext, Icons.Default.SkipNext, "Next")
             }
-            if (controls || gestureSide != null) {
                 ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
                 ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeOff)
-            }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(16.dp)) {
             if (!locked) {
