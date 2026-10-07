@@ -486,6 +486,7 @@ private fun PlayerChrome(
     onRepeat: () -> Unit,
     onShuffle: () -> Unit,
     onSpeed: () -> Unit,
+    onSpeedChoice: (Float) -> Unit,
     onRotate: () -> Unit,
     onLock: () -> Unit
 ) {
