@@ -5,7 +5,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -103,6 +103,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit) {
         }
     }
     LaunchedEffect(Unit) { reload() }
+    BackHandler(enabled = openFolder != null) { openFolder = null }
 
     val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
         .let { LibraryGrouping.filter(it, query) }

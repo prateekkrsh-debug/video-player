@@ -40,11 +40,11 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0.0
-          name: Video Player 2.0.0
+          tag_name: v2.1.0
+          name: Video Player 2.1.0
           body: |
-            Local folder video player. Debug APK for sideloading.
-            Allow video access, then open app-debug.apk.
+            Back returns to the previous screen. Side swipe controls volume and brightness.
+            Debug APK for sideloading.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true
           make_latest: true

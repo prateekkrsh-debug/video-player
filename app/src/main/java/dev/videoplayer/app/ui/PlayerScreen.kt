@@ -9,12 +9,15 @@ import android.widget.FrameLayout
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -114,7 +117,11 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
     var repeat by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
     var shuffle by remember { mutableStateOf(false) }
     var speed by remember { mutableFloatStateOf(1f) }
+    var gestureSide by remember { mutableStateOf<String?>(null) }
     var editor by remember { mutableStateOf(false) }
+    BackHandler {
+        if (editor) editor = false else onClose()
+    }
     var menu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
@@ -166,6 +173,45 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
             },
             modifier = Modifier.fillMaxSize()
         )
+        if (!locked) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.32f)
+                    .pointerInput(brightness) {
+                        detectVerticalDragGestures(
+                            onDragStart = { gestureSide = "brightness"; controls = true },
+                            onDragEnd = { gestureSide = null },
+                            onDragCancel = { gestureSide = null }
+                        ) { _, drag ->
+                            val next = (brightness - drag / size.height).coerceIn(0.01f, 1f)
+                            brightness = next
+                            val attrs = activity.window.attributes
+                            attrs.screenBrightness = next
+                            activity.window.attributes = attrs
+                        }
+                    }
+            )
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.32f)
+                    .pointerInput(volume) {
+                        detectVerticalDragGestures(
+                            onDragStart = { gestureSide = "volume"; controls = true },
+                            onDragEnd = { gestureSide = null },
+                            onDragCancel = { gestureSide = null }
+                        ) { _, drag ->
+                            val next = (volume - drag / size.height).coerceIn(0f, 1f)
+                            volume = next
+                            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, (next * max).toInt(), 0)
+                        }
+                    }
+            )
+        }
         if (controls || locked) {
             PlayerChrome(
                 landscape = landscape,
@@ -312,9 +358,9 @@ private fun PlayerChrome(
                 Spacer(Modifier.width(18.dp))
                 RoundButton(onNext, Icons.Default.SkipNext, "Next")
             }
-            if (landscape) {
-                SideSlider(Modifier.align(Alignment.CenterStart).padding(start = 16.dp), brightness, Icons.Default.BrightnessMedium, onBrightness)
-                SideSlider(Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), volume, Icons.AutoMirrored.Filled.VolumeOff, onVolume)
+            if (controls || gestureSide != null) {
+                ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
+                ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeOff)
             }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(16.dp)) {
@@ -355,18 +401,22 @@ private fun PlayerChrome(
 }
 
 @Composable
-private fun SideSlider(modifier: Modifier, value: Float, icon: androidx.compose.ui.graphics.vector.ImageVector, onChange: (Float) -> Unit) {
+private fun ThinMeter(modifier: Modifier, value: Float, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Column(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Panel).padding(vertical = 12.dp),
+        modifier.width(36.dp).clip(RoundedCornerShape(18.dp)).background(Color.Black.copy(alpha = 0.28f)).padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(icon, null, tint = Color.White)
-        Slider(
-            value = value,
-            onValueChange = onChange,
-            modifier = Modifier.graphicsLayer { rotationZ = -90f }.height(160.dp).width(160.dp),
-            colors = SliderDefaults.colors(thumbColor = Teal, activeTrackColor = Teal)
-        )
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.width(4.dp).height(120.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.25f))) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height((120 * value.coerceIn(0f, 1f)).dp)
+                    .background(Teal)
+            )
+        }
     }
 }
 
