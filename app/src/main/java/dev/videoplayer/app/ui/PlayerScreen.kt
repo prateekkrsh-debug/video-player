@@ -385,7 +385,8 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                                     video.name.substringBeforeLast('.') + "-clip.mp4",
                                     start,
                                     end,
-                                    height
+                                    height,
+                                    video.folder.ifBlank { "Movies/Clips" }
                                 )
                             }
                         }
