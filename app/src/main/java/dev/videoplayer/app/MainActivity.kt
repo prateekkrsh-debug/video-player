@@ -23,7 +23,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import dev.videoplayer.app.ui.theme.VideoPlayerTheme
+import androidx.compose.runtime.SideEffect
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : ComponentActivity() {
     private var granted by mutableStateOf(false)
@@ -43,18 +46,30 @@ class MainActivity : ComponentActivity() {
         setContent {
             VideoPlayerTheme {
                 val playing = queue
-                if (playing != null) {
-                    PlayerScreen(playing, startIndex) { queue = null }
-                } else if (granted) {
-                    LibraryRoot { videos, index ->
-                        queue = videos
-                        startIndex = index
+                SideEffect {
+                    val controller = WindowCompat.getInsetsController(window, window.decorView)
+                    if (playing != null) {
+                        controller.hide(WindowInsetsCompat.Type.systemBars())
+                        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    } else {
+                        controller.show(WindowInsetsCompat.Type.systemBars())
                     }
-                } else {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Button(onClick = { permission.launch(videoPermission()) }) {
-                            Text("Allow video access")
+                }
+                Box(Modifier.fillMaxSize()) {
+                    if (granted) {
+                        LibraryRoot { videos, index ->
+                            queue = videos
+                            startIndex = index
                         }
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Button(onClick = { permission.launch(videoPermission()) }) {
+                                Text("Allow video access")
+                            }
+                        }
+                    }
+                    if (playing != null) {
+                        PlayerScreen(playing, startIndex) { queue = null }
                     }
                 }
             }

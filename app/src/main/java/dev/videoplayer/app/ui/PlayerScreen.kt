@@ -27,7 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -83,7 +83,13 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import dev.videoplayer.app.editor.ClipExporter
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import dev.videoplayer.app.library.VideoFile
+import dev.videoplayer.app.library.VideoFileActions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -117,10 +123,23 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
     var repeat by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
     var shuffle by remember { mutableStateOf(false) }
     var speed by remember { mutableFloatStateOf(1f) }
+    var touchTick by remember { mutableIntStateOf(0) }
+    var errorText by remember { mutableStateOf<String?>(null) }
+    var showQueue by remember { mutableStateOf(false) }
+    var renameText by remember { mutableStateOf("") }
+    var renaming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var gestureSide by remember { mutableStateOf<String?>(null) }
+    val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { }
     var editor by remember { mutableStateOf(false) }
     BackHandler {
-        if (editor) editor = false else onClose()
+        when {
+            editor -> editor = false
+            showQueue -> showQueue = false
+            renaming -> renaming = false
+            deleting -> deleting = false
+            else -> onClose()
+        }
     }
     var menu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
@@ -136,23 +155,31 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
             }
             override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
                 index = player.currentMediaItemIndex
+                errorText = null
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                errorText = "This video cannot be played on this device."
             }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
     }
-    LaunchedEffect(playing, controls, locked) {
-        while (playing && controls && !locked && !editor) {
-            delay(250)
+    LaunchedEffect(controls, playing) {
+        while (controls) {
             position = player.currentPosition
             if (player.duration > 0) duration = player.duration
+            delay(250)
         }
     }
-    LaunchedEffect(controls, locked, editor) {
+    LaunchedEffect(touchTick, controls, locked, editor) {
         if (controls && !locked && !editor) {
             delay(2000)
             controls = false
         }
+    }
+    fun wake() {
+        controls = true
+        touchTick += 1
     }
 
     Box(
@@ -160,7 +187,16 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
             .fillMaxSize()
             .background(Color.Black)
             .pointerInput(locked) {
-                detectTapGestures { controls = if (locked) controls else !controls }
+                detectTapGestures(
+                    onDoubleTap = { offset ->
+                        if (locked) return@detectTapGestures
+                        val delta = if (offset.x < size.width / 2) -10_000 else 10_000
+                        player.seekTo((player.currentPosition + delta).coerceIn(0, player.duration.coerceAtLeast(0)))
+                        position = player.currentPosition
+                        wake()
+                    },
+                    onTap = { if (!locked) controls = !controls else controls = true }
+                )
             }
     ) {
         AndroidView(
@@ -181,7 +217,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                     .fillMaxWidth(0.32f)
                     .pointerInput(brightness) {
                         detectVerticalDragGestures(
-                            onDragStart = { gestureSide = "brightness"; controls = true },
+                            onDragStart = { gestureSide = "brightness"; wake() },
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
                         ) { _, drag ->
@@ -200,7 +236,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                     .fillMaxWidth(0.32f)
                     .pointerInput(volume) {
                         detectVerticalDragGestures(
-                            onDragStart = { gestureSide = "volume"; controls = true },
+                            onDragStart = { gestureSide = "volume"; wake() },
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
                         ) { _, drag ->
@@ -214,7 +250,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
         }
         if (gestureSide != null && !controls) {
             ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
-            ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeOff)
+            ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeUp)
         }
         if (controls || locked) {
             PlayerChrome(
@@ -228,19 +264,19 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                 brightness = brightness,
                 menu = menu,
                 onClose = onClose,
-                onEdit = { editor = true; controls = true },
+                onEdit = { editor = true; wake() },
                 onShare = { shareVideo(activity, video.uri, video.name) },
                 onMenu = { menu = true },
                 onDismissMenu = { menu = false },
-                onRename = { menu = false; toast(context, "Rename from the folder list") },
-                onDelete = { menu = false; toast(context, "Delete from the folder list") },
-                onPrevious = { player.seekToPreviousMediaItem() },
-                onPlay = { if (player.isPlaying) player.pause() else player.play() },
-                onNext = { player.seekToNextMediaItem() },
+                onRename = { menu = false; renameText = video.name; renaming = true },
+                onDelete = { menu = false; deleting = true },
+                onPrevious = { player.seekToPreviousMediaItem(); wake() },
+                onPlay = { if (player.isPlaying) player.pause() else player.play(); wake() },
+                onNext = { player.seekToNextMediaItem(); wake() },
                 onSeek = {
                     player.seekTo(it)
                     position = it
-                    controls = true
+                    wake()
                 },
                 onBrightness = {
                     brightness = it
@@ -255,24 +291,34 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                     audio.setStreamVolume(AudioManager.STREAM_MUSIC, (it * max).toInt(), 0)
                     controls = true
                 },
-                onQueue = { toast(context, "${queue.size} videos in this folder") },
+                onQueue = { showQueue = true; wake() },
                 onRepeat = {
-                    repeat = if (repeat == Player.REPEAT_MODE_OFF) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+                    repeat = when (repeat) {
+                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                        else -> Player.REPEAT_MODE_OFF
+                    }
                     player.repeatMode = repeat
-                    controls = true
+                    toast(context, when (repeat) {
+                        Player.REPEAT_MODE_ONE -> "Repeat one"
+                        Player.REPEAT_MODE_ALL -> "Repeat all"
+                        else -> "Repeat off"
+                    })
+                    wake()
                 },
                 onShuffle = {
                     shuffle = !shuffle
                     player.shuffleModeEnabled = shuffle
-                    controls = true
+                    toast(context, if (shuffle) "Shuffle on" else "Shuffle off")
+                    wake()
                 },
                 onSpeed = {
                     speed = when (speed) { 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 1f }
                     player.setPlaybackSpeed(speed)
                     toast(context, "${speed}x")
-                    controls = true
+                    wake()
                 },
-                onLock = { locked = !locked; controls = true }
+                onLock = { locked = !locked; wake() }
             )
         }
         if (editor) {
@@ -294,7 +340,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                     saving = true
                     scope.launch {
                         val result = runCatching {
-                            withContext(Dispatchers.IO) {
+                            withContext(Dispatchers.Main) {
                                 ClipExporter.export(
                                     context,
                                     Uri.parse(video.uri),
@@ -309,6 +355,64 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                         toast(context, result.fold({ "Clip saved to Movies/Clips" }, { "This file could not be clipped" }))
                     }
                 }
+            )
+        }
+        if (errorText != null) {
+            Text(errorText.orEmpty(), color = Color.White, modifier = Modifier.align(Alignment.Center).padding(24.dp))
+        }
+        if (showQueue) {
+            Column(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)).background(Panel).padding(12.dp)
+            ) {
+                Text("Queue", color = Color.White, modifier = Modifier.padding(8.dp))
+                queue.forEachIndexed { itemIndex, item ->
+                    Text(
+                        item.name,
+                        color = if (itemIndex == index) Teal else Color.White,
+                        maxLines = 1,
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            player.seekTo(itemIndex, 0)
+                            showQueue = false
+                        }.padding(vertical = 10.dp)
+                    )
+                }
+                TextButton(onClick = { showQueue = false }) { Text("Close", color = Teal) }
+            }
+        }
+        if (renaming) {
+            AlertDialog(
+                onDismissRequest = { renaming = false },
+                title = { Text("Rename video") },
+                text = { OutlinedTextField(renameText, { renameText = it }, singleLine = true) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch {
+                            val sender = withContext(Dispatchers.IO) { VideoFileActions.rename(context, video, renameText.trim()) }
+                            if (sender != null) consent.launch(IntentSenderRequest.Builder(sender).build())
+                            renaming = false
+                            toast(context, "Rename requested")
+                        }
+                    }) { Text("Save") }
+                },
+                dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancel") } }
+            )
+        }
+        if (deleting) {
+            AlertDialog(
+                onDismissRequest = { deleting = false },
+                title = { Text("Delete video") },
+                text = { Text(video.name) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch {
+                            val sender = withContext(Dispatchers.IO) { VideoFileActions.delete(context, video) }
+                            if (sender != null) consent.launch(IntentSenderRequest.Builder(sender).build())
+                            deleting = false
+                            onClose()
+                        }
+                    }) { Text("Delete") }
+                },
+                dismissButton = { TextButton(onClick = { deleting = false }) { Text("Cancel") } }
             )
         }
     }
@@ -363,7 +467,7 @@ private fun PlayerChrome(
                 RoundButton(onNext, Icons.Default.SkipNext, "Next")
             }
                 ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
-                ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeOff)
+                ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeUp)
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(16.dp)) {
             if (!locked) {

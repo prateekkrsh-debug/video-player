@@ -87,7 +87,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
-    var sortByCount by remember { mutableStateOf(false) }
+    var sortMode by remember { mutableStateOf(0) }
     var openFolder by remember { mutableStateOf<VideoFolder?>(null) }
     var pendingConsent by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -108,7 +108,13 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit) {
 
     val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
         .let { LibraryGrouping.filter(it, query) }
-        .let { if (sortByCount) it.sortedByDescending { folder -> folder.videos.size } else it }
+        .let {
+            when (sortMode) {
+                1 -> it.sortedByDescending { folder -> folder.videos.size }
+                2 -> it.sortedByDescending { folder -> folder.videos.maxOfOrNull { video -> video.dateAddedSec } ?: 0 }
+                else -> it
+            }
+        }
 
     if (openFolder != null) {
         FolderVideosScreen(
@@ -142,8 +148,8 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    val latest = videos.maxByOrNull { it.dateAddedSec } ?: return@FloatingActionButton
-                    onPlay(listOf(latest), 0)
+                    if (videos.isEmpty()) return@FloatingActionButton
+                    onPlay(videos.sortedByDescending { it.dateAddedSec }, 0)
                 },
                 containerColor = PlayBlue,
                 shape = CircleShape
@@ -157,8 +163,8 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit) {
             ) {
                 Text("Folders", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
-                IconButton(onClick = { sortByCount = !sortByCount }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = Color.White) }
-                Icon(Icons.Default.Person, "Library", tint = Color.White, modifier = Modifier.padding(8.dp).size(28.dp).clip(CircleShape).background(PlayBlue).padding(4.dp))
+                IconButton(onClick = { sortMode = (sortMode + 1) % 3 }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = Color.White) }
+                IconButton(onClick = { reload() }) { Icon(Icons.Default.Person, "Rescan", tint = Color.White) }
             }
             if (searching) {
                 OutlinedTextField(
@@ -228,6 +234,7 @@ private fun FolderVideosScreen(
 ) {
     var menuFor by remember { mutableStateOf<VideoFile?>(null) }
     var renameTarget by remember { mutableStateOf<VideoFile?>(null) }
+    var deleteTarget by remember { mutableStateOf<VideoFile?>(null) }
     var renameText by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().background(Ink)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
@@ -243,7 +250,7 @@ private fun FolderVideosScreen(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(video.name, color = Color.White)
-                        Text(formatDuration(video.durationMs), color = Muted, fontSize = 13.sp)
+                        Text("${formatDuration(video.durationMs)} · ${formatSize(video.sizeBytes)}", color = Muted, fontSize = 13.sp)
                     }
                     Box {
                         IconButton(onClick = { menuFor = video }) { Icon(Icons.Default.MoreVert, "More", tint = Color.White) }
@@ -262,7 +269,7 @@ private fun FolderVideosScreen(
                                 leadingIcon = { Icon(Icons.Default.Delete, null) },
                                 onClick = {
                                     menuFor = null
-                                    onDelete(video)
+                                    deleteTarget = video
                                 }
                             )
                         }
@@ -270,6 +277,20 @@ private fun FolderVideosScreen(
                 }
             }
         }
+    }
+    if (deleteTarget != null) {
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete video") },
+            text = { Text(deleteTarget?.name.orEmpty()) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteTarget?.let(onDelete)
+                    deleteTarget = null
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
+        )
     }
     if (renameTarget != null) {
         AlertDialog(
@@ -290,7 +311,16 @@ private fun FolderVideosScreen(
 
 fun formatDuration(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
-    return "%02d:%02d".format(total / 60, total % 60)
+    val hours = total / 3600
+    val minutes = (total % 3600) / 60
+    val seconds = total % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%02d:%02d".format(minutes, seconds)
+}
+
+fun formatSize(bytes: Long): String {
+    if (bytes < 1024 * 1024) return "${bytes / 1024} KB"
+    val mb = bytes / (1024f * 1024f)
+    return if (mb >= 1024) "%.1f GB".format(mb / 1024f) else "%.0f MB".format(mb)
 }
 
 fun shareVideo(activity: Activity, uri: String, name: String) {
