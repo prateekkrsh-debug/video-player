@@ -81,7 +81,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.media3.common.MediaItem
@@ -215,20 +215,21 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
             },
             modifier = Modifier.fillMaxSize()
         )
-        if (!locked) {
+        if (!locked && !editor) {
             Box(
                 Modifier
                     .align(Alignment.CenterStart)
                     .fillMaxHeight()
-                    .fillMaxWidth(0.32f)
-                    .pointerInput(brightness) {
+                    .fillMaxWidth(0.34f)
+                    .zIndex(2f)
+                    .padding(top = 72.dp, bottom = 120.dp)
+                    .pointerInput(Unit) {
                         detectVerticalDragGestures(
-                            onDragStart = { gestureSide = "brightness"; wake() },
+                            onDragStart = { gestureSide = "brightness" },
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
-                        ) { _, drag ->
-                            val travel = 150.dp.toPx()
-                            val next = (brightness - drag / travel).coerceIn(0.01f, 1f)
+                        ) { change, _ ->
+                            val next = (1f - change.position.y / size.height).coerceIn(0.01f, 1f)
                             brightness = next
                             val attrs = activity.window.attributes
                             attrs.screenBrightness = next
@@ -240,15 +241,16 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                 Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight()
-                    .fillMaxWidth(0.32f)
-                    .pointerInput(volume) {
+                    .fillMaxWidth(0.34f)
+                    .zIndex(2f)
+                    .padding(top = 72.dp, bottom = 120.dp)
+                    .pointerInput(Unit) {
                         detectVerticalDragGestures(
-                            onDragStart = { gestureSide = "volume"; wake() },
+                            onDragStart = { gestureSide = "volume" },
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
-                        ) { _, drag ->
-                            val travel = 150.dp.toPx()
-                            val next = (volume - drag / travel).coerceIn(0f, 1f)
+                        ) { change, _ ->
+                            val next = (1f - change.position.y / size.height).coerceIn(0f, 1f)
                             volume = next
                             val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                             audio.setStreamVolume(AudioManager.STREAM_MUSIC, (next * max).toInt(), 0)
@@ -256,11 +258,13 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                     }
             )
         }
-        if (gestureSide != null && !controls) {
+        if (gestureSide == "brightness") {
             ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
+        }
+        if (gestureSide == "volume") {
             ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeUp)
         }
-        if (controls || locked) {
+        if ((controls || locked) && !editor && gestureSide == null) {
             PlayerChrome(
                 landscape = landscape,
                 title = video.name,
