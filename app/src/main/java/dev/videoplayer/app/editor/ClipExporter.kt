@@ -6,7 +6,9 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.media3.common.MediaItem
+import androidx.media3.effect.Presentation
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.Effects
 import androidx.media3.transformer.Transformer
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
@@ -14,7 +16,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 object ClipExporter {
-    suspend fun export(context: Context, source: Uri, displayName: String, startMs: Long, endMs: Long): Uri {
+    suspend fun export(context: Context, source: Uri, displayName: String, startMs: Long, endMs: Long, height: Int = 720): Uri {
         val clipped = MediaItem.Builder()
             .setUri(source)
             .setClippingConfiguration(
@@ -24,7 +26,9 @@ object ClipExporter {
                     .build()
             )
             .build()
-        val edited = EditedMediaItem.Builder(clipped).build()
+        val edited = EditedMediaItem.Builder(clipped)
+            .setEffects(Effects(emptyList(), listOf(Presentation.createForHeight(height))))
+            .build()
         val temp = File(context.cacheDir, "clip-${System.currentTimeMillis()}.mp4")
         suspendCancellableCoroutine { cont ->
             val transformer = Transformer.Builder(context)

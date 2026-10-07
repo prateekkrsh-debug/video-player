@@ -69,7 +69,18 @@ import dev.videoplayer.app.library.VideoFile
 import dev.videoplayer.app.library.VideoFileActions
 import dev.videoplayer.app.library.VideoFolder
 import dev.videoplayer.app.library.VideoLibrary
+import android.graphics.Bitmap
+import android.os.Build
+import android.provider.MediaStore
+import android.util.Size
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -236,21 +247,41 @@ private fun FolderVideosScreen(
     var renameTarget by remember { mutableStateOf<VideoFile?>(null) }
     var deleteTarget by remember { mutableStateOf<VideoFile?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
+    var searching by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var subtitles by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(folder.name) {
+        subtitles = withContext(Dispatchers.IO) { subtitleStems(context) }
+    }
+    val now = System.currentTimeMillis() / 1000
+    val visible = folder.videos.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
     Column(Modifier.fillMaxSize().background(Ink)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
-            TextButton(onClick = onBack) { Text("Folders", color = Color.White) }
-            Text(folder.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+            Text(folder.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
+            IconButton(onClick = { }) { Icon(Icons.Default.MoreVert, "More", tint = Color.White) }
         }
-        LazyColumn {
-            items(folder.videos.size) { index ->
-                val video = folder.videos[index]
+        if (searching) {
+            OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), placeholder = { Text("Search videos") }, singleLine = true)
+        }
+        LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
+            items(visible.size) { index ->
+                val video = visible[index]
+                val recent = now - video.dateAddedSec in 0..(2 * 24 * 60 * 60)
+                val stem = video.name.substringBeforeLast('.').lowercase()
                 Row(
-                    Modifier.fillMaxWidth().clickable { onPlay(index) }.padding(horizontal = 18.dp, vertical = 12.dp),
+                    Modifier.fillMaxWidth().clickable { onPlay(folder.videos.indexOf(video)) }.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    VideoThumb(video, recent)
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(video.name, color = Color.White)
-                        Text("${formatDuration(video.durationMs)} · ${formatSize(video.sizeBytes)}", color = Muted, fontSize = 13.sp)
+                        Text(video.name, color = Color.White, maxLines = 3, fontSize = 15.sp)
+                        if (subtitles.contains(stem)) {
+                            Text("SRT", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF2E7D32)).padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
                     }
                     Box {
                         IconButton(onClick = { menuFor = video }) { Icon(Icons.Default.MoreVert, "More", tint = Color.White) }
@@ -334,4 +365,53 @@ fun shareVideo(activity: Activity, uri: String, name: String) {
 
 fun toast(context: android.content.Context, message: String) {
     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+}
+
+@Composable
+private fun VideoThumb(video: VideoFile, recent: Boolean) {
+    val context = LocalContext.current
+    var frame by remember(video.uri) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(video.uri) {
+        frame = withContext(Dispatchers.IO) { loadThumb(context, video.uri) }
+    }
+    Box(Modifier.width(124.dp).height(74.dp).clip(RoundedCornerShape(8.dp)).background(Card)) {
+        frame?.let { Image(it.asImageBitmap(), video.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        if (recent) {
+            Text("NEW", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(4.dp).clip(RoundedCornerShape(3.dp)).background(Badge).padding(horizontal = 4.dp, vertical = 1.dp))
+        }
+        Text(formatDuration(video.durationMs), color = Color.White, fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).clip(RoundedCornerShape(3.dp)).background(Color.Black.copy(alpha = 0.65f)).padding(horizontal = 4.dp, vertical = 1.dp))
+    }
+}
+
+private fun loadThumb(context: android.content.Context, uri: String): Bitmap? {
+    return try {
+        if (Build.VERSION.SDK_INT >= 29) {
+            context.contentResolver.loadThumbnail(android.net.Uri.parse(uri), Size(320, 180), null)
+        } else {
+            val retriever = android.media.MediaMetadataRetriever()
+            retriever.setDataSource(context, android.net.Uri.parse(uri))
+            val frame = retriever.getFrameAtTime(1_000_000)
+            retriever.release()
+            frame
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun subtitleStems(context: android.content.Context): Set<String> {
+    return try {
+        val stems = mutableSetOf<String>()
+        val uri = MediaStore.Files.getContentUri("external")
+        val projection = arrayOf(MediaStore.Files.FileColumns.DISPLAY_NAME)
+        context.contentResolver.query(uri, projection, "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?", arrayOf("%.srt"), null)?.use { cursor ->
+            val name = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+            while (cursor.moveToNext()) {
+                stems += cursor.getString(name).substringBeforeLast('.').lowercase()
+            }
+        }
+        stems
+    } catch (_: Exception) {
+        emptySet()
+    }
 }

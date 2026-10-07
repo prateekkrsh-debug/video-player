@@ -11,7 +11,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Close
@@ -221,7 +226,8 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
                         ) { _, drag ->
-                            val next = (brightness - drag / size.height).coerceIn(0.01f, 1f)
+                            val travel = 150.dp.toPx()
+                            val next = (brightness - drag / travel).coerceIn(0.01f, 1f)
                             brightness = next
                             val attrs = activity.window.attributes
                             attrs.screenBrightness = next
@@ -240,7 +246,8 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
                         ) { _, drag ->
-                            val next = (volume - drag / size.height).coerceIn(0f, 1f)
+                            val travel = 150.dp.toPx()
+                            val next = (volume - drag / travel).coerceIn(0f, 1f)
                             volume = next
                             val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                             audio.setStreamVolume(AudioManager.STREAM_MUSIC, (next * max).toInt(), 0)
@@ -336,7 +343,9 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                         player.pause()
                     }
                 },
-                onSave = { start, end ->
+                onSeek = { player.seekTo(it); position = it },
+                onMute = { player.volume = if (player.volume == 0f) 1f else 0f },
+                onSave = { start, end, height ->
                     saving = true
                     scope.launch {
                         val result = runCatching {
@@ -346,7 +355,8 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                                     Uri.parse(video.uri),
                                     video.name.substringBeforeLast('.') + "-clip.mp4",
                                     start,
-                                    end
+                                    end,
+                                    height
                                 )
                             }
                         }
@@ -542,63 +552,115 @@ fun ClipEditorDialog(
     saving: Boolean,
     onDismiss: () -> Unit,
     onPreview: (Long, Long) -> Unit,
-    onSave: (Long, Long) -> Unit
+    onSeek: (Long) -> Unit,
+    onMute: () -> Unit,
+    onSave: (Long, Long, Int) -> Unit
 ) {
     val context = LocalContext.current
-    var start by remember { mutableFloatStateOf(0f) }
-    var end by remember { mutableFloatStateOf(duration.toFloat()) }
+    val safeDuration = duration.coerceAtLeast(1)
+    var startFrac by remember { mutableFloatStateOf((position.toFloat() / safeDuration).coerceIn(0f, 0.8f)) }
+    var endFrac by remember { mutableFloatStateOf((startFrac + 0.18f).coerceAtMost(1f)) }
     var frames by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+    var heights = listOf(480, 720, 800, 1080)
+    var height by remember { mutableIntStateOf(800) }
+    var muted by remember { mutableStateOf(false) }
+    var dragMode by remember { mutableStateOf("move") }
+    var timeLabel by remember { mutableLongStateOf(position) }
     LaunchedEffect(video.uri) {
-        frames = withContext(Dispatchers.IO) { thumbnails(context, video.uri, duration) }
+        frames = withContext(Dispatchers.IO) { thumbnails(context, video.uri, safeDuration) }
     }
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.clip(RoundedCornerShape(28.dp)).background(Color(0xFF2A3140)).padding(18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(Modifier.clip(RoundedCornerShape(22.dp)).background(Color.Black).padding(16.dp)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(formatDuration(((start + end) / 2).toLong()), color = Color.White)
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF3E5360)).clickable { onPreview(start.toLong(), end.toLong()) },
-                            contentAlignment = Alignment.Center
-                        ) { Icon(Icons.Default.PlayArrow, "Preview", tint = Color.White) }
-                        Spacer(Modifier.width(8.dp))
-                        Row(
-                            Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(16.dp)).background(Teal),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("<", color = Color.White, modifier = Modifier.padding(6.dp))
-                            frames.take(4).forEach { frame ->
-                                Image(frame.asImageBitmap(), null, Modifier.weight(1f).height(46.dp), contentScale = ContentScale.Crop)
+    val startMs = (startFrac * safeDuration).toLong()
+    val endMs = (endFrac * safeDuration).toLong().coerceAtLeast(startMs + 400)
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            RoundButton(onDismiss, Icons.Default.Close, "Close", 42.dp)
+            Spacer(Modifier.width(8.dp))
+            RoundButton({ muted = !muted; onMute() }, if (muted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Mute", 42.dp)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { height = heights[(heights.indexOf(height) + 1) % heights.size] }) {
+                Text("${height}p", color = Color.White, modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFF3A3A3A)).padding(horizontal = 12.dp, vertical = 8.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.clip(RoundedCornerShape(22.dp)).background(Color(0xFFF5C518)).clickable(enabled = !saving) { onSave(startMs, endMs, height) }.padding(horizontal = 16.dp, vertical = 10.dp)
+            ) { if (saving) CircularProgressIndicator(Modifier.size(18.dp), color = Color.Black) else Icon(Icons.Default.Check, "Save", tint = Color.Black) }
+        }
+        Box(
+            Modifier.align(Alignment.Center).size(64.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)).clickable { onPreview(startMs, endMs) },
+            contentAlignment = Alignment.Center
+        ) { Icon(Icons.Default.PlayArrow, "Preview", tint = Color.White) }
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp)) {
+            Text(
+                formatClock(timeLabel),
+                color = Color.Black,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 24.dp, bottom = 8.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFF5C518)).padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+            BoxWithConstraints(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(72.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF2A2A2A)).pointerInput(safeDuration) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            val startX = startFrac * size.width
+                            val endX = endFrac * size.width
+                            dragMode = when {
+                                kotlin.math.abs(offset.x - startX) < 36.dp.toPx() -> "start"
+                                kotlin.math.abs(offset.x - endX) < 36.dp.toPx() -> "end"
+                                offset.x in startX..endX -> "move"
+                                else -> "move"
                             }
-                            if (frames.isEmpty()) Spacer(Modifier.weight(1f))
-                            Text(">", color = Color.White, modifier = Modifier.padding(6.dp))
+                        },
+                        onDrag = { _, amount ->
+                            val dx = amount.x / size.width
+                            val span = (endFrac - startFrac).coerceAtLeast(0.04f)
+                            when (dragMode) {
+                                "start" -> startFrac = (startFrac + dx).coerceIn(0f, endFrac - 0.04f)
+                                "end" -> endFrac = (endFrac + dx).coerceIn(startFrac + 0.04f, 1f)
+                                else -> {
+                                    startFrac = (startFrac + dx).coerceIn(0f, 1f - span)
+                                    endFrac = startFrac + span
+                                }
+                            }
+                            timeLabel = ((if (dragMode == "end") endFrac else startFrac) * safeDuration).toLong()
+                            onSeek(timeLabel)
                         }
-                    }
-                    Slider(start, { start = it.coerceAtMost(end - 500) }, valueRange = 0f..duration.toFloat())
-                    Slider(end, { end = it.coerceAtLeast(start + 500) }, valueRange = 0f..duration.toFloat())
+                    )
                 }
+            ) {
+                Row(Modifier.fillMaxSize()) {
+                    val shown = if (frames.isEmpty()) List(6) { null } else frames
+                    shown.forEach { frame ->
+                        if (frame == null) Spacer(Modifier.weight(1f).fillMaxHeight().background(Color.DarkGray))
+                        else Image(frame.asImageBitmap(), null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop)
+                    }
+                }
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .width(maxWidth * (endFrac - startFrac).coerceAtLeast(0.04f))
+                        .offset(x = maxWidth * startFrac)
+                        .border(3.dp, Color(0xFFF5C518), RoundedCornerShape(6.dp))
+                )
             }
-            Spacer(Modifier.height(16.dp))
-            Text("Edit and create clips from your\nvideo", color = Color.White, fontSize = 22.sp)
-            if (saving) {
-                CircularProgressIndicator(color = Teal, modifier = Modifier.padding(top = 12.dp))
-            } else {
-                TextButton(onClick = { onSave(start.toLong(), end.toLong()) }) { Text("Save clip", color = Teal) }
-            }
+            Text("${formatClock(startMs)}  –  ${formatClock(endMs)}", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(start = 20.dp, top = 8.dp))
         }
     }
+}
+
+private fun formatClock(ms: Long): String {
+    val total = ms.coerceAtLeast(0)
+    val hours = total / 3_600_000
+    val minutes = (total / 60_000) % 60
+    val seconds = (total / 1000) % 60
+    val centis = (total % 1000) / 10
+    return "%02d:%02d:%02d.%02d".format(hours, minutes, seconds, centis)
 }
 
 private fun thumbnails(context: android.content.Context, uri: String, duration: Long): List<Bitmap> {
     val retriever = MediaMetadataRetriever()
     return try {
         retriever.setDataSource(context, Uri.parse(uri))
-        (1..4).mapNotNull { step ->
-            retriever.getFrameAtTime(duration * 1000 * step / 5, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+        (0 until 8).mapNotNull { step ->
+            retriever.getFrameAtTime(duration * 1000 * step / 8, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
         }
     } catch (_: Exception) {
         emptyList()
