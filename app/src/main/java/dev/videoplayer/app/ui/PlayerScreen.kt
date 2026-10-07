@@ -344,8 +344,10 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     speed = it
                     player.setPlaybackSpeed(it)
                     toast(context, "${it}x")
+                    speedMenu = false
                     wake()
                 },
+                onDismissSpeed = { speedMenu = false },
                 onRotate = {
                     activity.requestedOrientation = if (landscape) {
                         android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -488,6 +490,7 @@ private fun PlayerChrome(
     onShuffle: () -> Unit,
     onSpeed: () -> Unit,
     onSpeedChoice: (Float) -> Unit,
+    onDismissSpeed: () -> Unit,
     onRotate: () -> Unit,
     onLock: () -> Unit
 ) {
