@@ -150,6 +150,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
         }
     }
     var menu by remember { mutableStateOf(false) }
+    var speedMenu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var volume by remember { mutableFloatStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC) / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()) }
@@ -278,8 +279,19 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                 volume = volume,
                 brightness = brightness,
                 menu = menu,
-                onClose = onClose,
-                onEdit = { editor = true; wake() },
+                speedMenu = speedMenu,
+                onClose = {
+                    activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    onClose()
+                },
+                onEdit = {
+                    editor = true
+                    activity.requestedOrientation = activity.resources.configuration.orientation.let {
+                        if (it == android.content.res.Configuration.ORIENTATION_LANDSCAPE) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    }
+                    wake()
+                },
                 onShare = { shareVideo(activity, video.uri, video.name) },
                 onMenu = { menu = true },
                 onDismissMenu = { menu = false },
@@ -327,10 +339,11 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     toast(context, if (shuffle) "Shuffle on" else "Shuffle off")
                     wake()
                 },
-                onSpeed = {
-                    speed = when (speed) { 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 1f }
-                    player.setPlaybackSpeed(speed)
-                    toast(context, "${speed}x")
+                onSpeed = { speedMenu = true; wake() },
+                onSpeedChoice = {
+                    speed = it
+                    player.setPlaybackSpeed(it)
+                    toast(context, "${it}x")
                     wake()
                 },
                 onRotate = {
@@ -378,7 +391,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                         }
                         saving = false
                         editor = false
-                        toast(context, result.fold({ "Clip saved to Movies/Clips" }, { "This file could not be clipped" }))
+                        toast(context, result.fold({ "Clip saved in ${video.folder}" }, { "This file could not be clipped" }))
                     }
                 }
             )
@@ -455,6 +468,7 @@ private fun PlayerChrome(
     volume: Float,
     brightness: Float,
     menu: Boolean,
+    speedMenu: Boolean,
     onClose: () -> Unit,
     onEdit: () -> Unit,
     onShare: () -> Unit,
@@ -517,6 +531,11 @@ private fun PlayerChrome(
                     IconButton(onClick = onRepeat) { Icon(Icons.Default.Repeat, "Repeat", tint = Color.White) }
                     IconButton(onClick = onShuffle) { Icon(Icons.Default.Shuffle, "Shuffle", tint = Color.White) }
                     IconButton(onClick = onSpeed) { Icon(Icons.Default.Speed, "Speed", tint = Color.White) }
+                    DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
+                        listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).forEach { choice ->
+                            DropdownMenuItem(text = { Text("${choice}x") }, onClick = { onSpeedChoice(choice); speedMenu = false })
+                        }
+                    }
                     IconButton(onClick = onRotate) { Icon(Icons.Default.ScreenRotation, "Orientation", tint = Color.White) }
                     IconButton(onClick = onLock) { Icon(Icons.Default.Lock, "Lock", tint = Color.White) }
                     Box {

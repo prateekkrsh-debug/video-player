@@ -16,7 +16,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 object ClipExporter {
-    suspend fun export(context: Context, source: Uri, displayName: String, startMs: Long, endMs: Long, height: Int? = null): Uri {
+    suspend fun export(context: Context, source: Uri, displayName: String, startMs: Long, endMs: Long, height: Int? = null, relativePath: String = "Movies/Clips"): Uri {
         val clipped = MediaItem.Builder()
             .setUri(source)
             .setClippingConfiguration(
@@ -51,14 +51,14 @@ object ClipExporter {
             cont.invokeOnCancellation { transformer.cancel() }
             transformer.start(edited, temp.absolutePath)
         }
-        return publish(context, temp, displayName)
+        return publish(context, temp, displayName, relativePath)
     }
 
-    private fun publish(context: Context, file: File, displayName: String): Uri {
+    private fun publish(context: Context, file: File, displayName: String, relativePath: String): Uri {
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Clips")
+            put(MediaStore.Video.Media.RELATIVE_PATH, relativePath.ifBlank { "Movies/Clips" })
             if (Build.VERSION.SDK_INT >= 29) put(MediaStore.Video.Media.IS_PENDING, 1)
         }
         val resolver = context.contentResolver
