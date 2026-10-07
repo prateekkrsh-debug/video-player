@@ -27,6 +27,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import dev.videoplayer.app.ui.theme.VideoPlayerTheme
 
 class MainActivity : ComponentActivity() {
     private var granted by mutableStateOf(false)
