@@ -555,15 +555,15 @@ fun ClipEditorDialog(
     onPreview: (Long, Long) -> Unit,
     onSeek: (Long) -> Unit,
     onMute: () -> Unit,
-    onSave: (Long, Long, Int) -> Unit
+    onSave: (Long, Long, Int?) -> Unit
 ) {
     val context = LocalContext.current
     val safeDuration = duration.coerceAtLeast(1)
     var startFrac by remember { mutableFloatStateOf((position.toFloat() / safeDuration).coerceIn(0f, 0.8f)) }
     var endFrac by remember { mutableFloatStateOf((startFrac + 0.18f).coerceAtMost(1f)) }
     var frames by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
-    var heights = listOf(480, 720, 800, 1080)
-    var height by remember { mutableIntStateOf(800) }
+    var height by remember { mutableStateOf<Int?>(null) }
+    var qualityMenu by remember { mutableStateOf(false) }
     var muted by remember { mutableStateOf(false) }
     var dragMode by remember { mutableStateOf("move") }
     var timeLabel by remember { mutableLongStateOf(position) }
@@ -578,8 +578,16 @@ fun ClipEditorDialog(
             Spacer(Modifier.width(8.dp))
             RoundButton({ muted = !muted; onMute() }, if (muted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Mute", 42.dp)
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { height = heights[(heights.indexOf(height) + 1) % heights.size] }) {
-                Text("${height}p", color = Color.White, modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFF3A3A3A)).padding(horizontal = 12.dp, vertical = 8.dp))
+            Box {
+                TextButton(onClick = { qualityMenu = true }) {
+                    Text(if (height == null) "Original" else "${height}p", color = Color.White, modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFF3A3A3A)).padding(horizontal = 12.dp, vertical = 8.dp))
+                }
+                DropdownMenu(expanded = qualityMenu, onDismissRequest = { qualityMenu = false }) {
+                    DropdownMenuItem(text = { Text("Original") }, onClick = { height = null; qualityMenu = false })
+                    listOf(1080, 720, 480).forEach { choice ->
+                        DropdownMenuItem(text = { Text("${choice}p") }, onClick = { height = choice; qualityMenu = false })
+                    }
+                }
             }
             Spacer(Modifier.width(8.dp))
             Box(

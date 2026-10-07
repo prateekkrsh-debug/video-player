@@ -16,7 +16,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 object ClipExporter {
-    suspend fun export(context: Context, source: Uri, displayName: String, startMs: Long, endMs: Long, height: Int = 720): Uri {
+    suspend fun export(context: Context, source: Uri, displayName: String, startMs: Long, endMs: Long, height: Int? = null): Uri {
         val clipped = MediaItem.Builder()
             .setUri(source)
             .setClippingConfiguration(
@@ -26,9 +26,11 @@ object ClipExporter {
                     .build()
             )
             .build()
-        val edited = EditedMediaItem.Builder(clipped)
-            .setEffects(Effects(emptyList(), listOf(Presentation.createForHeight(height))))
-            .build()
+        val builder = EditedMediaItem.Builder(clipped)
+        if (height != null) {
+            builder.setEffects(Effects(emptyList(), listOf(Presentation.createForHeight(height))))
+        }
+        val edited = builder.build()
         val temp = File(context.cacheDir, "clip-${System.currentTimeMillis()}.mp4")
         suspendCancellableCoroutine { cont ->
             val transformer = Transformer.Builder(context)

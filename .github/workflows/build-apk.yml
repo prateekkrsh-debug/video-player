@@ -40,10 +40,10 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.3.0
-          name: Video Player 2.3.0
+          tag_name: v2.4.0
+          name: Video Player 2.4.0
           body: |
-            Folder thumbnails and a draggable clip selection. Faster volume and brightness swipes.
+            Clip export quality: Original, 1080p, 720p, and 480p.
             Debug APK for sideloading.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true
