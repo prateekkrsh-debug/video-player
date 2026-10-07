@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
                                 startPosition = 0L
                             },
                             onResume = {
-                                val saved = PlaybackMemory.load(this)
+                                val saved = PlaybackMemory.load(this@MainActivity)
                                 if (saved != null) {
                                     queue = listOf(saved.first)
                                     startIndex = 0
@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
                     }
                     if (playing != null) {
                         PlayerScreen(playing, startIndex, startPosition, onProgress = { video, position ->
-                            PlaybackMemory.save(this, video, position)
+                            PlaybackMemory.save(this@MainActivity, video, position)
                         }) { queue = null }
                     }
                 }

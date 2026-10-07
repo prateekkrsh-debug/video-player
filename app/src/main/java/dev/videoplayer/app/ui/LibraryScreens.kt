@@ -77,6 +77,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

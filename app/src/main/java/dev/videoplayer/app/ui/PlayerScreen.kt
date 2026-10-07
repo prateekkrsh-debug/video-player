@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -324,12 +325,6 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     shuffle = !shuffle
                     player.shuffleModeEnabled = shuffle
                     toast(context, if (shuffle) "Shuffle on" else "Shuffle off")
-                    wake()
-                },
-                onSpeed = {
-                    speed = when (speed) { 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 1f }
-                    player.setPlaybackSpeed(speed)
-                    toast(context, "${speed}x")
                     wake()
                 },
                 onSpeed = {
