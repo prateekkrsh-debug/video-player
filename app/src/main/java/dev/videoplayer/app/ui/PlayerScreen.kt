@@ -533,9 +533,9 @@ private fun PlayerChrome(
                     IconButton(onClick = onRepeat) { Icon(Icons.Default.Repeat, "Repeat", tint = Color.White) }
                     IconButton(onClick = onShuffle) { Icon(Icons.Default.Shuffle, "Shuffle", tint = Color.White) }
                     IconButton(onClick = onSpeed) { Icon(Icons.Default.Speed, "Speed", tint = Color.White) }
-                    DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
+                    DropdownMenu(expanded = speedMenu, onDismissRequest = onDismissSpeed) {
                         listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).forEach { choice ->
-                            DropdownMenuItem(text = { Text("${choice}x") }, onClick = { onSpeedChoice(choice); speedMenu = false })
+                            DropdownMenuItem(text = { Text("${choice}x") }, onClick = { onSpeedChoice(choice); onDismissSpeed() })
                         }
                     }
                     IconButton(onClick = onRotate) { Icon(Icons.Default.ScreenRotation, "Orientation", tint = Color.White) }
