@@ -40,12 +40,11 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.4.0
-          name: Video Player 1.4.0
+          tag_name: v2.0.0
+          name: Video Player 2.0.0
           body: |
-            Debug APK for sideloading. No Android Studio required.
-            Player ads are handled by a video-id state machine. Playback hosts stay fail-open.
-            Enable install from unknown sources, then open app-debug.apk.
+            Local folder video player. Debug APK for sideloading.
+            Allow video access, then open app-debug.apk.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true
           make_latest: true

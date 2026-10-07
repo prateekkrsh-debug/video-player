@@ -1,170 +1,93 @@
 package dev.videoplayer.app
 
 import android.Manifest
-import android.app.PictureInPictureParams
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
-import android.content.res.Configuration
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Rational
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.videoplayer.app.player.PlaybackController
-import dev.videoplayer.app.player.PlaybackService
-import dev.videoplayer.app.ui.VideoPlayerRoot
+import dev.videoplayer.app.library.VideoFile
+import dev.videoplayer.app.ui.LibraryRoot
+import dev.videoplayer.app.ui.PlayerScreen
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import dev.videoplayer.app.ui.theme.VideoPlayerTheme
-import dev.videoplayer.app.youtube.YoutubeUrls
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    val container by lazy { (application as VideoPlayerApp).container }
-    private var pipEnabled = true
-    private var backgroundEnabled = true
-    private var enteringPip = false
+    private var granted by mutableStateOf(false)
+    private var queue by mutableStateOf<List<VideoFile>?>(null)
+    private var startIndex by mutableStateOf(0)
+
+    private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        granted = it
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        granted = hasVideoPermission()
+        if (!granted) permission.launch(videoPermission())
         setContent {
-            val settings = container.settings.settings.collectAsStateWithLifecycle(
-                initialValue = dev.videoplayer.app.settings.AppSettings()
-            )
-            VideoPlayerTheme(settings.value.theme) {
-                VideoPlayerRoot(this)
+            VideoPlayerTheme {
+                val playing = queue
+                if (playing != null) {
+                    PlayerScreen(playing, startIndex) { queue = null }
+                } else if (granted) {
+                    LibraryRoot { videos, index ->
+                        queue = videos
+                        startIndex = index
+                    }
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Button(onClick = { permission.launch(videoPermission()) }) {
+                            Text("Allow video access")
+                        }
+                    }
+                }
             }
         }
-        handleIntent(intent)
-        requestNotificationPermission()
-        refreshPlaybackPrefs()
+        handleViewIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
-        handleIntent(intent)
+        handleViewIntent(intent)
     }
 
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        if (shouldEnterPip()) {
-            enteringPip = true
-            enterPip()
-        }
+    private fun handleViewIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (intent.action != Intent.ACTION_VIEW) return
+        queue = listOf(
+            VideoFile(
+                id = -1,
+                uri = uri.toString(),
+                name = uri.lastPathSegment ?: "Video",
+                folder = "Opened",
+                durationMs = 0,
+                sizeBytes = 0,
+                dateAddedSec = 0
+            )
+        )
+        startIndex = 0
     }
 
-    override fun onPause() {
-        super.onPause()
-        if (isInPictureInPictureMode || enteringPip) return
-        if (shouldBackground()) {
-            PlaybackController.holdInBackground(true)
-            PlaybackService.start(this)
-        }
-    }
+    private fun hasVideoPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, videoPermission()) == PackageManager.PERMISSION_GRANTED
 
-    override fun onResume() {
-        super.onResume()
-        enteringPip = false
-        if (isInPictureInPictureMode) return
-        PlaybackController.holdInBackground(false)
-        PlaybackService.stop(this)
-        refreshPlaybackPrefs()
-    }
-
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        pipMode.value = isInPictureInPictureMode
-        enteringPip = false
-        if (!isInPictureInPictureMode && !hasWindowFocus() && shouldBackground()) {
-            PlaybackController.holdInBackground(true)
-            PlaybackService.start(this)
-        }
-    }
-
-    private fun handleIntent(intent: Intent?) {
-        val data = intent?.dataString ?: return
-        val target = YoutubeUrls.fromExternal(data) ?: return
-        incoming.value = target
-    }
-
-    fun enterPip() {
-        if (!pipEnabled || !PlaybackController.playing.value) return
-        enteringPip = true
-        val params = pipParams(autoEnter = false)
-        setPictureInPictureParams(params)
-        enterPictureInPictureMode(params)
-    }
-
-    fun updateAutoPip() {
-        if (Build.VERSION.SDK_INT >= 31) {
-            setPictureInPictureParams(pipParams(autoEnter = shouldEnterPip()))
-        }
-    }
-
-    private fun pipParams(autoEnter: Boolean): PictureInPictureParams {
-        val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9))
-        if (Build.VERSION.SDK_INT >= 31) builder.setAutoEnterEnabled(autoEnter)
-        return builder.build()
-    }
-
-    private fun shouldEnterPip(): Boolean =
-        pipEnabled && PlaybackController.playing.value && !isInPictureInPictureMode
-
-    private fun shouldBackground(): Boolean =
-        backgroundEnabled && PlaybackController.playing.value
-
-    private fun refreshPlaybackPrefs() {
-        lifecycleScope.launch {
-            val settings = container.settings.current()
-            pipEnabled = settings.pipEnabled
-            backgroundEnabled = settings.backgroundPlayback
-            updateAutoPip()
-        }
-    }
-
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT < 33) return
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-            return
-        }
-        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-    }
-
-    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
-    fun openExternal(url: String) {
-        runCatching {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
-    }
-
-    fun enterFullscreen(landscape: Boolean) {
-        if (landscape) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    }
-
-    fun exitFullscreen() {
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
-    }
-
-    companion object {
-        val incoming = MutableStateFlow<String?>(null)
-        val pipMode = MutableStateFlow(false)
-    }
+    private fun videoPermission(): String =
+        if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_VIDEO
+        else Manifest.permission.READ_EXTERNAL_STORAGE
 }
