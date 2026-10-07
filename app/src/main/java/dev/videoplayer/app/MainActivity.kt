@@ -14,7 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import dev.videoplayer.app.library.VideoFile
+import android.content.pm.ActivityInfo
+import dev.videoplayer.app.library.PlaybackMemory
 import dev.videoplayer.app.ui.LibraryRoot
 import dev.videoplayer.app.ui.PlayerScreen
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
     private var granted by mutableStateOf(false)
     private var queue by mutableStateOf<List<VideoFile>?>(null)
     private var startIndex by mutableStateOf(0)
+    private var startPosition by mutableStateOf(0L)
 
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
@@ -58,10 +60,21 @@ class MainActivity : ComponentActivity() {
                 }
                 Box(Modifier.fillMaxSize()) {
                     if (granted) {
-                        LibraryRoot { videos, index ->
-                            queue = videos
-                            startIndex = index
-                        }
+                        LibraryRoot(
+                            onPlay = { videos, index ->
+                                queue = videos
+                                startIndex = index
+                                startPosition = 0L
+                            },
+                            onResume = {
+                                val saved = PlaybackMemory.load(this)
+                                if (saved != null) {
+                                    queue = listOf(saved.first)
+                                    startIndex = 0
+                                    startPosition = saved.second
+                                }
+                            }
+                        )
                     } else {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Button(onClick = { permission.launch(videoPermission()) }) {
@@ -70,7 +83,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     if (playing != null) {
-                        PlayerScreen(playing, startIndex) { queue = null }
+                        PlayerScreen(playing, startIndex, startPosition, onProgress = { video, position ->
+                            PlaybackMemory.save(this, video, position)
+                        }) { queue = null }
                     }
                 }
             }

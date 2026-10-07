@@ -48,7 +48,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -106,7 +106,7 @@ private val Teal = Color(0xFF7EAEB8)
 private val Panel = Color(0xFF1C1E22)
 
 @Composable
-fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
+fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, onProgress: (VideoFile, Long) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
     val activity = context as android.app.Activity
     val scope = rememberCoroutineScope()
@@ -115,7 +115,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
     val video = queue[index]
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItems(queue.map { MediaItem.fromUri(it.uri) }, startIndex, 0)
+            setMediaItems(queue.map { MediaItem.fromUri(it.uri) }, startIndex, startPosition)
             prepare()
             playWhenReady = true
         }
@@ -175,6 +175,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
         while (controls) {
             position = player.currentPosition
             if (player.duration > 0) duration = player.duration
+            onProgress(queue.getOrElse(index) { video }, position)
             delay(250)
         }
     }
@@ -331,6 +332,20 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, onClose: () -> Unit) {
                     toast(context, "${speed}x")
                     wake()
                 },
+                onSpeed = {
+                    speed = when (speed) { 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 1f }
+                    player.setPlaybackSpeed(speed)
+                    toast(context, "${speed}x")
+                    wake()
+                },
+                onRotate = {
+                    activity.requestedOrientation = if (landscape) {
+                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    } else {
+                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    }
+                    wake()
+                },
                 onLock = { locked = !locked; wake() }
             )
         }
@@ -462,6 +477,7 @@ private fun PlayerChrome(
     onRepeat: () -> Unit,
     onShuffle: () -> Unit,
     onSpeed: () -> Unit,
+    onRotate: () -> Unit,
     onLock: () -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f))) {
@@ -506,6 +522,7 @@ private fun PlayerChrome(
                     IconButton(onClick = onRepeat) { Icon(Icons.Default.Repeat, "Repeat", tint = Color.White) }
                     IconButton(onClick = onShuffle) { Icon(Icons.Default.Shuffle, "Shuffle", tint = Color.White) }
                     IconButton(onClick = onSpeed) { Icon(Icons.Default.Speed, "Speed", tint = Color.White) }
+                    IconButton(onClick = onRotate) { Icon(Icons.Default.ScreenRotation, "Orientation", tint = Color.White) }
                     IconButton(onClick = onLock) { Icon(Icons.Default.Lock, "Lock", tint = Color.White) }
                     Box {
                         IconButton(onClick = onMenu) { Icon(Icons.Default.MoreVert, "More", tint = Color.White) }

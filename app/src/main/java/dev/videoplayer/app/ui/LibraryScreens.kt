@@ -76,7 +76,8 @@ import android.util.Size
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -88,7 +89,7 @@ private val Badge = Color(0xFFE53935)
 private val PlayBlue = Color(0xFF1E88E5)
 
 @Composable
-fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit) {
+fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var videos by remember { mutableStateOf<List<VideoFile>>(emptyList()) }
@@ -155,10 +156,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit) {
         containerColor = Ink,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    if (videos.isEmpty()) return@FloatingActionButton
-                    onPlay(videos.sortedByDescending { it.dateAddedSec }, 0)
-                },
+                onClick = { onResume() },
                 containerColor = PlayBlue,
                 shape = CircleShape
             ) { Icon(Icons.Default.PlayArrow, "Play latest", tint = Color.White) }
@@ -253,10 +251,18 @@ private fun FolderVideosScreen(
     }
     val now = System.currentTimeMillis() / 1000
     val visible = folder.videos.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
-    Column(Modifier.fillMaxSize().background(Ink)) {
+    Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
-            Text(folder.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text(
+                folder.name,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
             IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
             IconButton(onClick = { }) { Icon(Icons.Default.MoreVert, "More", tint = Color.White) }
         }
