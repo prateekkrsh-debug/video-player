@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import android.content.pm.ActivityInfo
 import dev.videoplayer.app.library.PlaybackMemory
+import dev.videoplayer.app.library.VideoFile
 import dev.videoplayer.app.ui.LibraryRoot
 import dev.videoplayer.app.ui.PlayerScreen
 import androidx.compose.foundation.layout.Box
