@@ -121,7 +121,13 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
             playWhenReady = true
         }
     }
-    DisposableEffect(Unit) { onDispose { player.release() } }
+    DisposableEffect(Unit) {
+        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        onDispose {
+            activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            player.release()
+        }
+    }
 
     var playing by remember { mutableStateOf(true) }
     var position by remember { mutableLongStateOf(0L) }
@@ -146,7 +152,10 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
             showQueue -> showQueue = false
             renaming -> renaming = false
             deleting -> deleting = false
-            else -> onClose()
+            else -> {
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                onClose()
+            }
         }
     }
     var menu by remember { mutableStateOf(false) }
@@ -281,7 +290,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                 menu = menu,
                 speedMenu = speedMenu,
                 onClose = {
-                    activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     onClose()
                 },
                 onEdit = {
