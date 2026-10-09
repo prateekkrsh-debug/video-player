@@ -176,6 +176,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
     var msPerScreen by remember { mutableLongStateOf(GesturePrefs.msPerScreen(context)) }
     var lastTapMs by remember { mutableLongStateOf(0L) }
     var exported by remember { mutableStateOf<dev.videoplayer.app.editor.ClipExport?>(null) }
+    var saving by remember { mutableStateOf(false) }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var volume by remember { mutableFloatStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC) / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()) }
     var brightness by remember { mutableFloatStateOf(activity.window.attributes.screenBrightness.let { if (it < 0f) 0.6f else it }) }
@@ -494,8 +495,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     val problem = dev.videoplayer.app.editor.ClipSelection.error(start, end, duration.coerceAtLeast(1))
                     if (problem != null) {
                         toast(context, problem)
-                        return@onSave
-                    }
+                    } else {
                     saving = true
                     scope.launch {
                         val result = runCatching {
@@ -514,6 +514,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                         saving = false
                         result.onSuccess { exported = it; editor = false }
                         result.onFailure { toast(context, it.message ?: "This file could not be clipped") }
+                    }
                     }
                 }
             )
@@ -544,6 +545,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                 }
             )
         }
+        if (errorText != null) {
             Text(errorText.orEmpty(), color = Color.White, modifier = Modifier.align(Alignment.Center).padding(24.dp))
         }
         if (showQueue) {
