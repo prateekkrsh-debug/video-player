@@ -33,7 +33,7 @@ import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SortByAlpha
@@ -130,7 +130,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
         FolderVideosScreen(
             folder = folders.firstOrNull { it.name == openFolder?.name } ?: openFolder!!,
             onBack = { openFolder = null },
-            onPlay = { index -> onPlay(openFolder!!.videos, index) },
+            onPlay = { list, index -> onPlay(list, index) },
             onRename = { video, name ->
                 scope.launch {
                     val sender = withContext(Dispatchers.IO) { VideoFileActions.rename(context, video, name) }
@@ -171,7 +171,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
                 Text("Folders", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
                 IconButton(onClick = { sortMode = (sortMode + 1) % 3 }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = Color.White) }
-                IconButton(onClick = { reload() }) { Icon(Icons.Default.Person, "Rescan", tint = Color.White) }
+                IconButton(onClick = { reload() }) { Icon(Icons.Default.Refresh, "Refresh", tint = Color.White) }
             }
             if (searching) {
                 OutlinedTextField(
@@ -235,7 +235,7 @@ private fun FolderRow(folder: VideoFolder, onClick: () -> Unit) {
 private fun FolderVideosScreen(
     folder: VideoFolder,
     onBack: () -> Unit,
-    onPlay: (Int) -> Unit,
+    onPlay: (List<VideoFile>, Int) -> Unit,
     onRename: (VideoFile, String) -> Unit,
     onDelete: (VideoFile) -> Unit
 ) {
@@ -245,13 +245,26 @@ private fun FolderVideosScreen(
     var renameText by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
+    var sortKey by remember { mutableStateOf("date") }
+    var sortAsc by remember { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var subtitles by remember { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(folder.name) {
         subtitles = withContext(Dispatchers.IO) { subtitleStems(context) }
     }
     val now = System.currentTimeMillis() / 1000
-    val visible = folder.videos.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
+    val visible = folder.videos
+        .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
+        .let { list ->
+            val sorted = when (sortKey) {
+                "name" -> list.sortedBy { it.name.lowercase() }
+                "size" -> list.sortedBy { it.sizeBytes }
+                "duration" -> list.sortedBy { it.durationMs }
+                else -> list.sortedBy { it.dateAddedSec }
+            }
+            if (sortAsc) sorted else sorted.reversed()
+        }
     Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
@@ -265,7 +278,19 @@ private fun FolderVideosScreen(
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
-            IconButton(onClick = { }) { Icon(Icons.Default.MoreVert, "More", tint = Color.White) }
+            Box {
+                IconButton(onClick = { sortMenu = true }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = Color.White) }
+                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                    DropdownMenuItem(text = { Text("Name A–Z") }, onClick = { sortKey = "name"; sortAsc = true; sortMenu = false })
+                    DropdownMenuItem(text = { Text("Name Z–A") }, onClick = { sortKey = "name"; sortAsc = false; sortMenu = false })
+                    DropdownMenuItem(text = { Text("Size largest") }, onClick = { sortKey = "size"; sortAsc = false; sortMenu = false })
+                    DropdownMenuItem(text = { Text("Size smallest") }, onClick = { sortKey = "size"; sortAsc = true; sortMenu = false })
+                    DropdownMenuItem(text = { Text("Duration longest") }, onClick = { sortKey = "duration"; sortAsc = false; sortMenu = false })
+                    DropdownMenuItem(text = { Text("Duration shortest") }, onClick = { sortKey = "duration"; sortAsc = true; sortMenu = false })
+                    DropdownMenuItem(text = { Text("Date newest") }, onClick = { sortKey = "date"; sortAsc = false; sortMenu = false })
+                    DropdownMenuItem(text = { Text("Date oldest") }, onClick = { sortKey = "date"; sortAsc = true; sortMenu = false })
+                }
+            }
         }
         if (searching) {
             OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), placeholder = { Text("Search videos") }, singleLine = true)
@@ -276,13 +301,14 @@ private fun FolderVideosScreen(
                 val recent = now - video.dateAddedSec in 0..(2 * 24 * 60 * 60)
                 val stem = video.name.substringBeforeLast('.').lowercase()
                 Row(
-                    Modifier.fillMaxWidth().clickable { onPlay(folder.videos.indexOf(video)) }.padding(horizontal = 12.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().clickable { onPlay(visible, index) }.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     VideoThumb(video, recent)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(video.name, color = Color.White, maxLines = 3, fontSize = 15.sp)
+                        Text(video.name, color = Color.White, maxLines = 2, fontSize = 15.sp)
+                        Text(formatSize(video.sizeBytes), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                         if (subtitles.contains(stem)) {
                             Text("SRT", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF2E7D32)).padding(horizontal = 6.dp, vertical = 2.dp))
                         }
