@@ -160,6 +160,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
     }
     var menu by remember { mutableStateOf(false) }
     var speedMenu by remember { mutableStateOf(false) }
+    var holdingBoost by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var volume by remember { mutableFloatStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC) / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()) }
@@ -208,13 +209,28 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
             .pointerInput(locked) {
                 detectTapGestures(
                     onDoubleTap = { offset ->
-                        if (locked) return@detectTapGestures
+                        if (locked || holdingBoost) return@detectTapGestures
                         val delta = if (offset.x < size.width / 2) -10_000 else 10_000
                         player.seekTo((player.currentPosition + delta).coerceIn(0, player.duration.coerceAtLeast(0)))
                         position = player.currentPosition
                         wake()
                     },
-                    onTap = { if (!locked) controls = !controls else controls = true }
+                    onTap = { if (!locked && !holdingBoost) controls = !controls else controls = true },
+                    onPress = {
+                        if (locked || editor) return@onPress
+                        val holdJob = scope.launch {
+                            delay(180)
+                            holdingBoost = true
+                            player.setPlaybackSpeed(2f)
+                        }
+                        tryAwaitRelease()
+                        holdJob.cancel()
+                        if (holdingBoost) {
+                            holdingBoost = false
+                            speed = 1f
+                            player.setPlaybackSpeed(1f)
+                        }
+                    }
                 )
             }
     ) {
@@ -234,14 +250,32 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     .align(Alignment.CenterStart)
                     .fillMaxHeight()
                     .fillMaxWidth(0.34f)
-                    .zIndex(2f)
+                    .zIndex(1f)
                     .padding(top = 72.dp, bottom = 120.dp)
-                    .pointerInput(Unit) {
+                    .pointerInput(locked, editor) {
+                        detectTapGestures(onPress = {
+                            if (locked || editor) return@detectTapGestures
+                            val holdJob = scope.launch {
+                                delay(180)
+                                holdingBoost = true
+                                player.setPlaybackSpeed(2f)
+                            }
+                            tryAwaitRelease()
+                            holdJob.cancel()
+                            if (holdingBoost) {
+                                holdingBoost = false
+                                speed = 1f
+                                player.setPlaybackSpeed(1f)
+                            }
+                        })
+                    }
+                    .pointerInput(locked, editor) {
                         detectVerticalDragGestures(
                             onDragStart = { gestureSide = "brightness" },
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
                         ) { change, _ ->
+                            if (holdingBoost) return@detectVerticalDragGestures
                             val next = (1f - change.position.y / size.height).coerceIn(0.01f, 1f)
                             brightness = next
                             val attrs = activity.window.attributes
@@ -255,14 +289,32 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight()
                     .fillMaxWidth(0.34f)
-                    .zIndex(2f)
+                    .zIndex(1f)
                     .padding(top = 72.dp, bottom = 120.dp)
-                    .pointerInput(Unit) {
+                    .pointerInput(locked, editor) {
+                        detectTapGestures(onPress = {
+                            if (locked || editor) return@detectTapGestures
+                            val holdJob = scope.launch {
+                                delay(180)
+                                holdingBoost = true
+                                player.setPlaybackSpeed(2f)
+                            }
+                            tryAwaitRelease()
+                            holdJob.cancel()
+                            if (holdingBoost) {
+                                holdingBoost = false
+                                speed = 1f
+                                player.setPlaybackSpeed(1f)
+                            }
+                        })
+                    }
+                    .pointerInput(locked, editor) {
                         detectVerticalDragGestures(
                             onDragStart = { gestureSide = "volume" },
                             onDragEnd = { gestureSide = null },
                             onDragCancel = { gestureSide = null }
                         ) { change, _ ->
+                            if (holdingBoost) return@detectVerticalDragGestures
                             val next = (1f - change.position.y / size.height).coerceIn(0f, 1f)
                             volume = next
                             val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -274,10 +326,26 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
         if (gestureSide == "brightness") {
             ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
         }
+        if (holdingBoost) {
+            Row(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 28.dp)
+                    .zIndex(6f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.Black.copy(alpha = 0.62f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("2.0x", color = Color.White, fontSize = 14.sp)
+                Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+        }
         if (gestureSide == "volume") {
             ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeUp)
         }
-        if ((controls || locked) && !editor && gestureSide == null) {
+        if ((controls || locked) && !editor && gestureSide == null && !holdingBoost) {
             PlayerChrome(
                 landscape = landscape,
                 title = video.name,
