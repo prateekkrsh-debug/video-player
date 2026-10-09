@@ -77,7 +77,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.input.pointer.awaitPointerEvent
+import androidx.compose.ui.input.pointer.positionChange
+import dev.videoplayer.app.player.GesturePrefs
+import dev.videoplayer.app.player.SeekGesture
+import kotlin.math.abs
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -161,6 +170,13 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
     var menu by remember { mutableStateOf(false) }
     var speedMenu by remember { mutableStateOf(false) }
     var holdingBoost by remember { mutableStateOf(false) }
+    var seeking by remember { mutableStateOf(false) }
+    var seekDelta by remember { mutableLongStateOf(0L) }
+    var seekPreview by remember { mutableLongStateOf(0L) }
+    var seekEnabled by remember { mutableStateOf(GesturePrefs.enabled(context)) }
+    var seekOverlay by remember { mutableStateOf(GesturePrefs.overlay(context)) }
+    var msPerScreen by remember { mutableLongStateOf(GesturePrefs.msPerScreen(context)) }
+    var lastTapMs by remember { mutableLongStateOf(0L) }
     var saving by remember { mutableStateOf(false) }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var volume by remember { mutableFloatStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC) / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()) }
@@ -206,33 +222,105 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
         Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(locked) {
-                detectTapGestures(
-                    onDoubleTap = { offset ->
-                        if (locked || holdingBoost) return@detectTapGestures
-                        val delta = if (offset.x < size.width / 2) -10_000 else 10_000
-                        player.seekTo((player.currentPosition + delta).coerceIn(0, player.duration.coerceAtLeast(0)))
-                        position = player.currentPosition
-                        wake()
-                    },
-                    onTap = { if (!locked && !holdingBoost) controls = !controls else controls = true },
-                    onPress = {
-                        if (!locked && !editor) {
-                            val holdJob = scope.launch {
-                                delay(180)
-                                holdingBoost = true
-                                player.setPlaybackSpeed(2f)
-                            }
-                            tryAwaitRelease()
-                            holdJob.cancel()
-                            if (holdingBoost) {
-                                holdingBoost = false
-                                speed = 1f
-                                player.setPlaybackSpeed(1f)
-                            }
+            .pointerInput(locked, editor, seekEnabled, msPerScreen) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    if (locked || editor) return@awaitEachGesture
+                    val start = down.position
+                    val origin = player.currentPosition
+                    val wasPlaying = player.isPlaying
+                    var mode = "none"
+                    val holdJob = scope.launch {
+                        delay(280)
+                        if (mode == "none") {
+                            mode = "hold"
+                            holdingBoost = true
+                            player.setPlaybackSpeed(2f)
                         }
                     }
-                )
+                    try {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (!change.pressed) break
+                            val dx = change.position.x - start.x
+                            val dy = change.position.y - start.y
+                            if (mode == "none" || mode == "hold") {
+                                val next = SeekGesture.direction(dx, dy)
+                                if (next != null) {
+                                    holdJob.cancel()
+                                    if (holdingBoost) {
+                                        holdingBoost = false
+                                        player.setPlaybackSpeed(speed)
+                                    }
+                                    mode = when {
+                                        next == "seek" && seekEnabled -> "seek"
+                                        start.x < size.width * 0.4f -> "brightness"
+                                        start.x > size.width * 0.6f -> "volume"
+                                        else -> "ignore"
+                                    }
+                                    if (mode == "seek") {
+                                        seeking = true
+                                        seekPreview = origin
+                                        seekDelta = 0
+                                    }
+                                    if (mode == "brightness") gestureSide = "brightness"
+                                    if (mode == "volume") gestureSide = "volume"
+                                }
+                            }
+                            when (mode) {
+                                "seek" -> {
+                                    val target = SeekGesture.target(origin, dx, size.width.toFloat(), player.duration.coerceAtLeast(duration), msPerScreen)
+                                    seekPreview = target
+                                    seekDelta = target - origin
+                                    position = target
+                                    change.consume()
+                                }
+                                "brightness" -> {
+                                    val next = (1f - change.position.y / size.height).coerceIn(0.01f, 1f)
+                                    brightness = next
+                                    val attrs = activity.window.attributes
+                                    attrs.screenBrightness = next
+                                    activity.window.attributes = attrs
+                                    change.consume()
+                                }
+                                "volume" -> {
+                                    val next = (1f - change.position.y / size.height).coerceIn(0f, 1f)
+                                    volume = next
+                                    val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                    audio.setStreamVolume(AudioManager.STREAM_MUSIC, (next * max).toInt(), 0)
+                                    change.consume()
+                                }
+                            }
+                        }
+                    } finally {
+                        holdJob.cancel()
+                        if (mode == "seek") {
+                            player.seekTo(seekPreview)
+                            position = seekPreview
+                            if (wasPlaying) player.play() else player.pause()
+                            seeking = false
+                        }
+                        if (mode == "none") {
+                            val now = android.os.SystemClock.uptimeMillis()
+                            if (now - lastTapMs < 280) {
+                                val delta = if (start.x < size.width / 2) -10_000 else 10_000
+                                player.seekTo((player.currentPosition + delta).coerceIn(0, player.duration.coerceAtLeast(0)))
+                                position = player.currentPosition
+                                lastTapMs = 0
+                            } else {
+                                lastTapMs = now
+                                if (!holdingBoost) controls = !controls
+                            }
+                        }
+                        if (holdingBoost) {
+                            holdingBoost = false
+                            speed = 1f
+                            player.setPlaybackSpeed(1f)
+                        }
+                        gestureSide = null
+                    }
+                }
             }
     ) {
         AndroidView(
@@ -245,87 +333,6 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
             },
             modifier = Modifier.fillMaxSize()
         )
-        if (!locked && !editor) {
-            Box(
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-                    .fillMaxWidth(0.34f)
-                    .zIndex(1f)
-                    .padding(top = 72.dp, bottom = 120.dp)
-                    .pointerInput(locked, editor) {
-                        detectTapGestures(onPress = {
-                            if (!locked && !editor) {
-                                val holdJob = scope.launch {
-                                    delay(180)
-                                    holdingBoost = true
-                                    player.setPlaybackSpeed(2f)
-                                }
-                                tryAwaitRelease()
-                                holdJob.cancel()
-                                if (holdingBoost) {
-                                    holdingBoost = false
-                                    speed = 1f
-                                    player.setPlaybackSpeed(1f)
-                                }
-                            }
-                        })
-                    }
-                    .pointerInput(locked, editor) {
-                        detectVerticalDragGestures(
-                            onDragStart = { gestureSide = "brightness" },
-                            onDragEnd = { gestureSide = null },
-                            onDragCancel = { gestureSide = null }
-                        ) { change, _ ->
-                            if (holdingBoost) return@detectVerticalDragGestures
-                            val next = (1f - change.position.y / size.height).coerceIn(0.01f, 1f)
-                            brightness = next
-                            val attrs = activity.window.attributes
-                            attrs.screenBrightness = next
-                            activity.window.attributes = attrs
-                        }
-                    }
-            )
-            Box(
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .fillMaxWidth(0.34f)
-                    .zIndex(1f)
-                    .padding(top = 72.dp, bottom = 120.dp)
-                    .pointerInput(locked, editor) {
-                        detectTapGestures(onPress = {
-                            if (!locked && !editor) {
-                                val holdJob = scope.launch {
-                                    delay(180)
-                                    holdingBoost = true
-                                    player.setPlaybackSpeed(2f)
-                                }
-                                tryAwaitRelease()
-                                holdJob.cancel()
-                                if (holdingBoost) {
-                                    holdingBoost = false
-                                    speed = 1f
-                                    player.setPlaybackSpeed(1f)
-                                }
-                            }
-                        })
-                    }
-                    .pointerInput(locked, editor) {
-                        detectVerticalDragGestures(
-                            onDragStart = { gestureSide = "volume" },
-                            onDragEnd = { gestureSide = null },
-                            onDragCancel = { gestureSide = null }
-                        ) { change, _ ->
-                            if (holdingBoost) return@detectVerticalDragGestures
-                            val next = (1f - change.position.y / size.height).coerceIn(0f, 1f)
-                            volume = next
-                            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, (next * max).toInt(), 0)
-                        }
-                    }
-            )
-        }
         if (gestureSide == "brightness") {
             ThinMeter(Modifier.align(Alignment.CenterStart).padding(start = 18.dp), brightness, Icons.Default.BrightnessMedium)
         }
@@ -348,7 +355,18 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
         if (gestureSide == "volume") {
             ThinMeter(Modifier.align(Alignment.CenterEnd).padding(end = 18.dp), volume, Icons.AutoMirrored.Filled.VolumeUp)
         }
-        if ((controls || locked) && !editor && gestureSide == null && !holdingBoost) {
+        if (seeking && seekOverlay) {
+            Column(
+                Modifier.align(Alignment.Center).zIndex(6f).clip(RoundedCornerShape(18.dp)).background(Color.Black.copy(alpha = 0.62f)).padding(horizontal = 22.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(if (seekDelta >= 0) Icons.Default.FastForward else Icons.Default.FastRewind, null, tint = Color.White, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.height(6.dp))
+                Text(SeekGesture.label(seekDelta), color = Color.White, fontSize = 22.sp)
+                Text("${formatDuration(seekPreview)} / ${formatDuration(duration)}", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+            }
+        }
+        if ((controls || locked) && !editor && gestureSide == null && !holdingBoost && !seeking) {
             PlayerChrome(
                 landscape = landscape,
                 title = video.name,
@@ -436,7 +454,25 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     }
                     wake()
                 },
-                onLock = { locked = !locked; wake() }
+                onLock = { locked = !locked; wake() },
+                seekEnabled = seekEnabled,
+                seekOverlay = seekOverlay,
+                msPerScreen = msPerScreen,
+                onToggleSeek = {
+                    seekEnabled = !seekEnabled
+                    GesturePrefs.setEnabled(context, seekEnabled)
+                    menu = false
+                },
+                onToggleOverlay = {
+                    seekOverlay = !seekOverlay
+                    GesturePrefs.setOverlay(context, seekOverlay)
+                    menu = false
+                },
+                onCycleSensitivity = {
+                    msPerScreen = when (msPerScreen) { 45_000L -> 90_000L; 90_000L -> 150_000L; else -> 45_000L }
+                    GesturePrefs.setMsPerScreen(context, msPerScreen)
+                    menu = false
+                }
             )
         }
         if (editor) {
@@ -572,7 +608,13 @@ private fun PlayerChrome(
     onSpeedChoice: (Float) -> Unit,
     onDismissSpeed: () -> Unit,
     onRotate: () -> Unit,
-    onLock: () -> Unit
+    onLock: () -> Unit,
+    seekEnabled: Boolean,
+    seekOverlay: Boolean,
+    msPerScreen: Long,
+    onToggleSeek: () -> Unit,
+    onToggleOverlay: () -> Unit,
+    onCycleSensitivity: () -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f))) {
         Row(
@@ -628,6 +670,9 @@ private fun PlayerChrome(
                         DropdownMenu(expanded = menu, onDismissRequest = onDismissMenu) {
                             DropdownMenuItem(text = { Text("Rename in folder") }, onClick = onRename)
                             DropdownMenuItem(text = { Text("Delete in folder") }, onClick = onDelete)
+                            DropdownMenuItem(text = { Text(if (seekEnabled) "Swipe seek on" else "Swipe seek off") }, onClick = onToggleSeek)
+                            DropdownMenuItem(text = { Text("Seek sensitivity ${msPerScreen / 1000}s") }, onClick = onCycleSensitivity)
+                            DropdownMenuItem(text = { Text(if (seekOverlay) "Seek overlay on" else "Seek overlay off") }, onClick = onToggleOverlay)
                         }
                     }
                 }
