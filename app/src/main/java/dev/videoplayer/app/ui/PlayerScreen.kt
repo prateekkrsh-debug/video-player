@@ -81,9 +81,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.awaitFirstDown
-import androidx.compose.ui.input.pointer.awaitPointerEvent
-import androidx.compose.ui.input.pointer.positionChange
 import dev.videoplayer.app.player.GesturePrefs
 import dev.videoplayer.app.player.SeekGesture
 import kotlin.math.abs
