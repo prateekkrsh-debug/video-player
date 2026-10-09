@@ -175,7 +175,7 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
     var seekOverlay by remember { mutableStateOf(GesturePrefs.overlay(context)) }
     var msPerScreen by remember { mutableLongStateOf(GesturePrefs.msPerScreen(context)) }
     var lastTapMs by remember { mutableLongStateOf(0L) }
-    var saving by remember { mutableStateOf(false) }
+    var exported by remember { mutableStateOf<dev.videoplayer.app.editor.ClipExport?>(null) }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     var volume by remember { mutableFloatStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC) / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()) }
     var brightness by remember { mutableFloatStateOf(activity.window.attributes.screenBrightness.let { if (it < 0f) 0.6f else it }) }
@@ -491,14 +491,19 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                 onSeek = { player.seekTo(it); position = it },
                 onMute = { player.volume = if (player.volume == 0f) 1f else 0f },
                 onSave = { start, end, height ->
+                    val problem = dev.videoplayer.app.editor.ClipSelection.error(start, end, duration.coerceAtLeast(1))
+                    if (problem != null) {
+                        toast(context, problem)
+                        return@onSave
+                    }
                     saving = true
                     scope.launch {
                         val result = runCatching {
                             withContext(Dispatchers.Main) {
-                                ClipExporter.export(
+                                dev.videoplayer.app.editor.ClipExporter.export(
                                     context,
                                     Uri.parse(video.uri),
-                                    video.name.substringBeforeLast('.') + "-clip.mp4",
+                                    dev.videoplayer.app.editor.ClipSelection.fileName(video.name, start),
                                     start,
                                     end,
                                     height,
@@ -507,13 +512,38 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                             }
                         }
                         saving = false
-                        editor = false
-                        toast(context, result.fold({ "Clip saved in ${video.folder}" }, { "This file could not be clipped" }))
+                        result.onSuccess { exported = it; editor = false }
+                        result.onFailure { toast(context, it.message ?: "This file could not be clipped") }
                     }
                 }
             )
         }
-        if (errorText != null) {
+        if (exported != null) {
+            val clip = exported!!
+            AlertDialog(
+                onDismissRequest = { exported = null },
+                title = { Text("Clip saved") },
+                text = { Text("${clip.name}\n${formatDuration(clip.durationMs)} · ${formatSize(clip.bytes)}\n${if (clip.optimized) "Fast trim" else "Compatible export"} · ${clip.tookMs / 1000}s") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        player.setMediaItem(androidx.media3.common.MediaItem.fromUri(clip.uri))
+                        player.prepare()
+                        player.play()
+                        exported = null
+                    }) { Text("Play") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = { shareVideo(activity, clip.uri.toString(), clip.name) }) { Text("Share") }
+                        TextButton(onClick = {
+                            context.contentResolver.delete(clip.uri, null, null)
+                            exported = null
+                            toast(context, "Clip deleted")
+                        }) { Text("Delete") }
+                    }
+                }
+            )
+        }
             Text(errorText.orEmpty(), color = Color.White, modifier = Modifier.align(Alignment.Center).padding(24.dp))
         }
         if (showQueue) {
@@ -757,6 +787,18 @@ fun ClipEditorDialog(
             Box(
                 Modifier.clip(RoundedCornerShape(22.dp)).background(Color(0xFFF5C518)).clickable(enabled = !saving) { onSave(startMs, endMs, height) }.padding(horizontal = 16.dp, vertical = 10.dp)
             ) { if (saving) CircularProgressIndicator(Modifier.size(18.dp), color = Color.Black) else Icon(Icons.Default.Check, "Save", tint = Color.Black) }
+        }
+        Text(
+            "${formatClock(startMs)} – ${formatClock(endMs)}   ${formatClock(endMs - startMs)}   ${if (height == null) "Fast copy" else "Re-encode"}",
+            color = Color.White,
+            fontSize = 13.sp,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp)
+        )
+        Row(Modifier.align(Alignment.TopCenter).padding(top = 96.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { startFrac = ((startMs - 1000).coerceAtLeast(0) / safeDuration.toFloat()) }) { Text("Start −1s", color = Color.White) }
+            TextButton(onClick = { startFrac = ((startMs + 1000).coerceAtMost(endMs - 400) / safeDuration.toFloat()) }) { Text("Start +1s", color = Color.White) }
+            TextButton(onClick = { endFrac = ((endMs - 1000).coerceAtLeast(startMs + 400) / safeDuration.toFloat()) }) { Text("End −1s", color = Color.White) }
+            TextButton(onClick = { endFrac = ((endMs + 1000).coerceAtMost(safeDuration) / safeDuration.toFloat()) }) { Text("End +1s", color = Color.White) }
         }
         Box(
             Modifier.align(Alignment.Center).size(64.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)).clickable { onPreview(startMs, endMs) },
