@@ -254,18 +254,19 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     .padding(top = 72.dp, bottom = 120.dp)
                     .pointerInput(locked, editor) {
                         detectTapGestures(onPress = {
-                            if (locked || editor) return@detectTapGestures
-                            val holdJob = scope.launch {
-                                delay(180)
-                                holdingBoost = true
-                                player.setPlaybackSpeed(2f)
-                            }
-                            tryAwaitRelease()
-                            holdJob.cancel()
-                            if (holdingBoost) {
-                                holdingBoost = false
-                                speed = 1f
-                                player.setPlaybackSpeed(1f)
+                            if (!locked && !editor) {
+                                val holdJob = scope.launch {
+                                    delay(180)
+                                    holdingBoost = true
+                                    player.setPlaybackSpeed(2f)
+                                }
+                                tryAwaitRelease()
+                                holdJob.cancel()
+                                if (holdingBoost) {
+                                    holdingBoost = false
+                                    speed = 1f
+                                    player.setPlaybackSpeed(1f)
+                                }
                             }
                         })
                     }
@@ -293,18 +294,19 @@ fun PlayerScreen(queue: List<VideoFile>, startIndex: Int, startPosition: Long, o
                     .padding(top = 72.dp, bottom = 120.dp)
                     .pointerInput(locked, editor) {
                         detectTapGestures(onPress = {
-                            if (locked || editor) return@detectTapGestures
-                            val holdJob = scope.launch {
-                                delay(180)
-                                holdingBoost = true
-                                player.setPlaybackSpeed(2f)
-                            }
-                            tryAwaitRelease()
-                            holdJob.cancel()
-                            if (holdingBoost) {
-                                holdingBoost = false
-                                speed = 1f
-                                player.setPlaybackSpeed(1f)
+                            if (!locked && !editor) {
+                                val holdJob = scope.launch {
+                                    delay(180)
+                                    holdingBoost = true
+                                    player.setPlaybackSpeed(2f)
+                                }
+                                tryAwaitRelease()
+                                holdJob.cancel()
+                                if (holdingBoost) {
+                                    holdingBoost = false
+                                    speed = 1f
+                                    player.setPlaybackSpeed(1f)
+                                }
                             }
                         })
                     }
