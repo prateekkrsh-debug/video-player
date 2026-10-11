@@ -73,6 +73,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import dev.videoplayer.app.settings.OrganizePrefs
+import dev.videoplayer.app.library.LibraryGrouping
 import dev.videoplayer.app.library.VideoFile
 import dev.videoplayer.app.library.VideoFileActions
 import dev.videoplayer.app.library.VideoFolder
@@ -289,6 +290,16 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
                     }
                 }
             }
+        }
+    }
+    if (showOrganize) {
+        OrganizeDialog(viewMode, layoutMode, sortKey, newest, onDismiss = { showOrganize = false }) { view, layout, sort, newestFirst ->
+            viewMode = view
+            layoutMode = layout
+            sortKey = sort
+            newest = newestFirst
+            OrganizePrefs.save(context, view, layout, sort, newestFirst)
+            showOrganize = false
         }
     }
 }
