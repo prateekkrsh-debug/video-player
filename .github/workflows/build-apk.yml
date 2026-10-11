@@ -40,10 +40,10 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.15.0
-          name: Video Player 2.15.0
+          tag_name: v2.16.0
+          name: Video Player 2.16.0
           body: |
-            Private vault opens from Settings. First visit sets a password, then the vault shows the fingerprint option.
+            Vault plus button browses folders to move videos in. Selected vault videos can be restored together.
             Debug APK for sideloading.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true

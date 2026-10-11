@@ -219,7 +219,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
 }
 
 @Composable
-private fun FolderRow(folder: VideoFolder, onClick: () -> Unit) {
+internal fun FolderRow(folder: VideoFolder, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -425,7 +425,7 @@ fun toast(context: android.content.Context, message: String) {
 }
 
 @Composable
-private fun VideoThumb(video: VideoFile, recent: Boolean) {
+internal fun VideoThumb(video: VideoFile, recent: Boolean) {
     val context = LocalContext.current
     var frame by remember(video.uri) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(video.uri) {
@@ -440,13 +440,14 @@ private fun VideoThumb(video: VideoFile, recent: Boolean) {
     }
 }
 
-private fun loadThumb(context: android.content.Context, uri: String): Bitmap? {
+internal fun loadThumb(context: android.content.Context, uri: String): Bitmap? {
     return try {
-        if (Build.VERSION.SDK_INT >= 29) {
-            context.contentResolver.loadThumbnail(android.net.Uri.parse(uri), Size(320, 180), null)
+        val parsed = android.net.Uri.parse(uri)
+        if (Build.VERSION.SDK_INT >= 29 && parsed.scheme != "file") {
+            context.contentResolver.loadThumbnail(parsed, Size(320, 180), null)
         } else {
             val retriever = android.media.MediaMetadataRetriever()
-            retriever.setDataSource(context, android.net.Uri.parse(uri))
+            if (parsed.scheme == "file") retriever.setDataSource(parsed.path) else retriever.setDataSource(context, parsed)
             val frame = retriever.getFrameAtTime(1_000_000)
             retriever.release()
             frame
