@@ -1,5 +1,6 @@
 package dev.videoplayer.app.ui
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
