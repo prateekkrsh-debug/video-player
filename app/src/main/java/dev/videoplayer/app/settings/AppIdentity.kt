@@ -9,10 +9,10 @@ object AppIdentity {
     val names = listOf("Video Player", "Movies", "Player", "Films", "Calculator", "Notes", "Weather", "Gallery", "Files", "Clock")
 
     fun iconRes(icon: String) = when (icon) {
-        "film" -> dev.videoplayer.app.R.mipmap.ic_launcher_film
-        "shield" -> dev.videoplayer.app.R.mipmap.ic_launcher_shield
-        "star" -> dev.videoplayer.app.R.mipmap.ic_launcher_star
-        else -> dev.videoplayer.app.R.mipmap.ic_launcher
+        "film" -> dev.videoplayer.app.R.drawable.ic_launcher_film
+        "shield" -> dev.videoplayer.app.R.drawable.ic_launcher_shield
+        "star" -> dev.videoplayer.app.R.drawable.ic_launcher_star
+        else -> dev.videoplayer.app.R.drawable.ic_launcher_foreground
     }
 
     fun alias(icon: String, name: String) = "dev.videoplayer.app.Launcher_${icon}_${name.replace(" ", "")}"

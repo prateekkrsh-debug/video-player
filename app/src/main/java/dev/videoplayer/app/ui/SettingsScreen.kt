@@ -112,7 +112,12 @@ private fun Choice(label: String, selected: Boolean, swatch: Color? = null, onCl
 private fun IconChoice(icon: String, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(AppIdentity.iconRes(icon)), icon, Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
+        Image(
+            painter = runCatching { painterResource(AppIdentity.iconRes(icon)) }.getOrNull()
+                ?: painterResource(dev.videoplayer.app.R.drawable.ic_launcher_foreground),
+            contentDescription = icon,
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF1E88E5))
+        )
         Spacer(Modifier.width(14.dp))
         Text(if (selected) "● ${icon.replaceFirstChar { it.uppercase() }}" else icon.replaceFirstChar { it.uppercase() }, color = colors.onBackground)
     }

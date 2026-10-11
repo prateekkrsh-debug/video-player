@@ -40,10 +40,10 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.23.0
-          name: Video Player 2.23.0
+          tag_name: v2.24.0
+          name: Video Player 2.24.0
           body: |
-            Folder video menu now has working delete, copy, and move. Vault add is removed from that menu.
+            Settings no longer closes the app when the gear is opened.
             Debug APK for sideloading.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true
