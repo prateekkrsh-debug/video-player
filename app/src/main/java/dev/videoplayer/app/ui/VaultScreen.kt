@@ -176,10 +176,12 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
                         TextButton(onClick = {
                             scope.launch {
                                 val chosen = items.filter { it.id in selected }
-                                withContext(Dispatchers.IO) { chosen.forEach { VaultStore.restore(context, it) } }
+                                val restored = withContext(Dispatchers.IO) {
+                                    chosen.count { runCatching { VaultStore.restore(context, it) }.getOrDefault(false) }
+                                }
                                 items = VaultStore.items(context)
                                 selected = emptySet()
-                                toast(context, "Restored ${chosen.size} video${if (chosen.size == 1) "" else "s"}")
+                                toast(context, if (restored == chosen.size) "Restored successfully" else "Could not restore")
                             }
                         }) { Text("Restore ${selected.size}") }
                     }

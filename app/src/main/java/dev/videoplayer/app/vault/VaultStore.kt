@@ -73,27 +73,54 @@ object VaultStore {
         File(item.path).delete()
     }
 
-    fun restore(context: Context, item: VaultItem): Uri {
-        val source = File(item.path)
-        val folder = item.folder.ifBlank { "Movies" }
-        val destDir = File("/storage/emulated/0/$folder").apply { mkdirs() }
-        val dest = File(destDir, item.name)
-        if (source.exists() && source.renameTo(dest)) {
-            android.media.MediaScannerConnection.scanFile(context, arrayOf(dest.absolutePath), arrayOf("video/*"), null)
+    fun restore(context: Context, item: VaultItem): Boolean {
+        return try {
+            val source = File(item.path)
+            if (!source.exists()) {
+                forget(context, item)
+                return false
+            }
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, safeName(item.name))
+                put(MediaStore.Video.Media.MIME_TYPE, mimeFor(item.name))
+                put(MediaStore.Video.Media.RELATIVE_PATH, safeFolder(item.folder))
+            }
+            val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return false
+            val copied = context.contentResolver.openOutputStream(uri)?.use { out ->
+                source.inputStream().use { it.copyTo(out) }
+                true
+            } ?: false
+            if (!copied) {
+                runCatching { context.contentResolver.delete(uri, null, null) }
+                return false
+            }
+            source.delete()
             forget(context, item)
-            return Uri.fromFile(dest)
+            true
+        } catch (_: Exception) {
+            false
         }
-        val values = android.content.ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, item.name)
-            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, folder)
+    }
+
+    private fun safeFolder(folder: String): String {
+        val cleaned = folder.replace(Regex("[\\\\:*?\"<>|]"), "").trim().trim('/')
+        val path = when {
+            cleaned.isBlank() || cleaned.equals("Unknown", true) || cleaned.equals("Vault", true) -> "Movies"
+            cleaned.contains("/") -> cleaned
+            cleaned.equals("Camera", true) -> "DCIM/Camera"
+            cleaned.equals("Download", true) || cleaned.equals("Downloads", true) -> "Download"
+            else -> "Movies/$cleaned"
         }
-        val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
-            ?: error("Could not restore the video.")
-        context.contentResolver.openOutputStream(uri)?.use { out -> source.inputStream().use { it.copyTo(out) } }
-        source.delete()
-        forget(context, item)
-        return uri
+        return if (path.endsWith("/")) path else "$path/"
+    }
+
+    private fun mimeFor(name: String) = when (name.substringAfterLast('.', "").lowercase()) {
+        "webm" -> "video/webm"
+        "mkv" -> "video/x-matroska"
+        "mov" -> "video/quicktime"
+        "3gp" -> "video/3gpp"
+        else -> "video/mp4"
     }
 
     private fun forget(context: Context, item: VaultItem) {
