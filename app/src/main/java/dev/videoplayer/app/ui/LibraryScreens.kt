@@ -152,6 +152,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
     if (openFolder != null) {
         FolderVideosScreen(
             folder = folders.firstOrNull { it.name == openFolder?.name } ?: openFolder!!,
+            destinations = (folders.map { it.name } + listOf("Movies", "Download")).distinct(),
             onBack = { openFolder = null },
             onPlay = { list, index -> onPlay(list, index) },
             onRename = { video, name ->
@@ -166,6 +167,28 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
             onDelete = { video ->
                 scope.launch {
                     val sender = withContext(Dispatchers.IO) { VideoFileActions.delete(context, video) }
+                    if (sender != null) {
+                        pendingConsent = { reload() }
+                        consent.launch(IntentSenderRequest.Builder(sender).build())
+                    } else reload()
+                }
+            },
+            onCopy = { video, destination ->
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { VideoFileActions.copy(context, video, destination) }
+                    toast(context, if (ok) "Copied" else "Could not copy")
+                    if (ok) reload()
+                }
+            },
+            onMove = { video, destination ->
+                scope.launch {
+                    val sender = runCatching {
+                        withContext(Dispatchers.IO) { VideoFileActions.move(context, video, destination) }
+                    }.getOrElse {
+                        toast(context, it.message ?: "Could not move")
+                        return@launch
+                    }
+                    toast(context, "Moved")
                     if (sender != null) {
                         pendingConsent = { reload() }
                         consent.launch(IntentSenderRequest.Builder(sender).build())
@@ -259,14 +282,19 @@ internal fun FolderRow(folder: VideoFolder, onClick: () -> Unit) {
 @Composable
 private fun FolderVideosScreen(
     folder: VideoFolder,
+    destinations: List<String>,
     onBack: () -> Unit,
     onPlay: (List<VideoFile>, Int) -> Unit,
     onRename: (VideoFile, String) -> Unit,
-    onDelete: (VideoFile) -> Unit
+    onDelete: (VideoFile) -> Unit,
+    onCopy: (VideoFile, String) -> Unit,
+    onMove: (VideoFile, String) -> Unit
 ) {
     var menuFor by remember { mutableStateOf<VideoFile?>(null) }
     var renameTarget by remember { mutableStateOf<VideoFile?>(null) }
     var deleteTarget by remember { mutableStateOf<VideoFile?>(null) }
+    var transferTarget by remember { mutableStateOf<VideoFile?>(null) }
+    var transferMove by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
@@ -352,18 +380,29 @@ private fun FolderVideosScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Add to vault") },
-                                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                text = { Text("Delete") },
+                                leadingIcon = { Icon(Icons.Default.Delete, null) },
                                 onClick = {
                                     menuFor = null
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            dev.videoplayer.app.vault.VaultStore.add(context, android.net.Uri.parse(video.uri), video.name, video.durationMs, video.folder)
-                                            context.contentResolver.delete(android.net.Uri.parse(video.uri), null, null)
-                                        }
-                                        toast(context, "Moved to vault")
-                                        onBack()
-                                    }
+                                    deleteTarget = video
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Copy") },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                onClick = {
+                                    menuFor = null
+                                    transferTarget = video
+                                    transferMove = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Move") },
+                                leadingIcon = { Icon(Icons.Default.DriveFileMove, null) },
+                                onClick = {
+                                    menuFor = null
+                                    transferTarget = video
+                                    transferMove = true
                                 }
                             )
                         }
@@ -371,6 +410,25 @@ private fun FolderVideosScreen(
                 }
             }
         }
+    }
+    if (transferTarget != null) {
+        AlertDialog(
+            onDismissRequest = { transferTarget = null },
+            title = { Text(if (transferMove) "Move to" else "Copy to") },
+            text = {
+                Column {
+                    destinations.filterNot { it == folder.name }.forEach { destination ->
+                        Text(destination, modifier = Modifier.fillMaxWidth().clickable {
+                            val target = transferTarget ?: return@clickable
+                            if (transferMove) onMove(target, destination) else onCopy(target, destination)
+                            transferTarget = null
+                        }.padding(vertical = 10.dp))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { transferTarget = null }) { Text("Cancel") } }
+        )
     }
     if (deleteTarget != null) {
         AlertDialog(

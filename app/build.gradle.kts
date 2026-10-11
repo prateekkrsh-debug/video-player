@@ -12,8 +12,8 @@ android {
         applicationId = "dev.videoplayer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "2.22.0"
+        versionCode = 29
+        versionName = "2.23.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
