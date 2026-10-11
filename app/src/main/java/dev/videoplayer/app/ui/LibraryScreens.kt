@@ -118,8 +118,15 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
         }
     }
     LaunchedEffect(Unit) { reload() }
-    BackHandler(enabled = openFolder != null || showSettings) {
-        if (showSettings) showSettings = false else openFolder = null
+    BackHandler(enabled = openFolder != null || showSettings || showVault) {
+        when {
+            showVault -> {
+                showVault = false
+                showSettings = true
+            }
+            showSettings -> showSettings = false
+            else -> openFolder = null
+        }
     }
 
     val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
@@ -137,7 +144,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
         return
     }
     if (showVault) {
-        VaultScreen(onBack = { showVault = false }, onPlay = onPlay)
+        VaultScreen(onBack = { showVault = false; showSettings = true }, onPlay = onPlay)
         return
     }
     if (openFolder != null) {

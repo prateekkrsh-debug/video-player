@@ -87,7 +87,7 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
             else -> onBack()
         }
     }
-    BackHandler { stepBack() }
+    BackHandler(enabled = picking || pickerFolder != null) { stepBack() }
 
     LaunchedEffect(hasPassword) {
         val activity = context as? FragmentActivity ?: return@LaunchedEffect
