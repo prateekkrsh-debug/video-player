@@ -31,7 +31,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import dev.videoplayer.app.ui.theme.VideoPlayerTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : androidx.fragment.app.FragmentActivity() {
     private var granted by mutableStateOf(false)
     private var queue by mutableStateOf<List<VideoFile>?>(null)
     private var startIndex by mutableStateOf(0)
@@ -49,7 +49,8 @@ class MainActivity : ComponentActivity() {
         granted = hasVideoPermission()
         if (!granted) permission.launch(videoPermission())
         setContent {
-            VideoPlayerTheme {
+            val themeName = androidx.compose.runtime.remember { mutableStateOf(dev.videoplayer.app.settings.ThemePrefs.current(this@MainActivity)) }
+            VideoPlayerTheme(themeName.value) {
                 val playing = queue
                 SideEffect {
                     val controller = WindowCompat.getInsetsController(window, window.decorView)
@@ -75,7 +76,8 @@ class MainActivity : ComponentActivity() {
                                     startIndex = 0
                                     startPosition = saved.second
                                 }
-                            }
+                            },
+                            onTheme = { themeName.value = it }
                         )
                     } else {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

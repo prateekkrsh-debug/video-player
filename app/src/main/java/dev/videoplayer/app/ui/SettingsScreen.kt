@@ -1,0 +1,132 @@
+package dev.videoplayer.app.ui
+
+import android.content.Context
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import dev.videoplayer.app.player.GesturePrefs
+import dev.videoplayer.app.settings.AppIdentity
+import dev.videoplayer.app.settings.ThemePrefs
+import dev.videoplayer.app.vault.VaultStore
+
+@Composable
+fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: () -> Unit) {
+    val context = LocalContext.current
+    var seek by remember { mutableStateOf(GesturePrefs.enabled(context)) }
+    var overlay by remember { mutableStateOf(GesturePrefs.overlay(context)) }
+    var sensitivity by remember { mutableStateOf(GesturePrefs.msPerScreen(context)) }
+    var theme by remember { mutableStateOf(ThemePrefs.current(context)) }
+    val identity = remember { AppIdentity.current(context) }
+    var icon by remember { mutableStateOf(identity.first) }
+    var name by remember { mutableStateOf(identity.second) }
+    var password by remember { mutableStateOf("") }
+    var fingerprint by remember { mutableStateOf(VaultStore.fingerprint(context)) }
+    Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+            Text("Settings", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        Section("Theme")
+        listOf("Dark", "Light", "AMOLED").forEach { choice ->
+            Choice(choice, theme == choice) {
+                theme = choice
+                ThemePrefs.set(context, choice)
+                onTheme(choice)
+            }
+        }
+        Section("Gesture controls")
+        Toggle("Swipe to seek", seek) { seek = it; GesturePrefs.setEnabled(context, it) }
+        Toggle("Seek overlay", overlay) { overlay = it; GesturePrefs.setOverlay(context, it) }
+        Choice("Seek ${sensitivity / 1000}s per swipe", false) {
+            sensitivity = when (sensitivity) { 45_000L -> 90_000L; 90_000L -> 150_000L; else -> 45_000L }
+            GesturePrefs.setMsPerScreen(context, sensitivity)
+        }
+        Section("App icon and name")
+        Text("Android can only switch among names built into the app. The home screen may take a few seconds to update.", color = Color(0xFFB7BDC7), fontSize = 13.sp)
+        AppIdentity.icons.forEach { choice -> Choice("Icon: $choice", icon == choice) { icon = choice; AppIdentity.apply(context, icon, name) } }
+        AppIdentity.names.forEach { choice -> Choice(choice, name == choice) { name = choice; AppIdentity.apply(context, icon, name) } }
+        Section("Private vault")
+        Text("Videos moved into the vault are removed from the library and other players. They stay on this device and play only after unlock.", color = Color(0xFFB7BDC7), fontSize = 13.sp)
+        OutlinedTextField(password, { password = it }, label = { Text("Vault password") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        TextButton(onClick = {
+            if (password.length >= 4) {
+                VaultStore.setPassword(context, password)
+                toast(context, "Vault password saved")
+            } else toast(context, "Use at least 4 characters")
+        }) { Text("Save password") }
+        Toggle("Allow fingerprint", fingerprint) { fingerprint = it; VaultStore.setFingerprint(context, it) }
+        Row(Modifier.fillMaxWidth().clickable { unlockVault(context, onOpenVault) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Lock, null, tint = Color.White)
+            Text("Open vault", color = Color.White, modifier = Modifier.padding(start = 12.dp))
+        }
+    }
+}
+
+private fun unlockVault(context: Context, onOpen: () -> Unit) {
+    if (!VaultStore.hasPassword(context)) {
+        toast(context, "Set a vault password first")
+        return
+    }
+    val activity = context as? FragmentActivity
+    if (VaultStore.fingerprint(context) && activity != null && BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS) {
+        val prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(context), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onOpen()
+        })
+        prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Open vault").setNegativeButtonText("Use password").build())
+    } else {
+        toast(context, "Enter the vault password in Settings, then open again")
+    }
+}
+
+@Composable
+private fun Section(title: String) {
+    Spacer(Modifier.height(18.dp))
+    Text(title, color = Color(0xFF1E88E5), fontWeight = FontWeight.Bold)
+}
+
+@Composable
+private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(if (selected) "● $label" else label, color = Color.White, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp))
+}
+
+@Composable
+private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Color.White, modifier = Modifier.weight(1f))
+        Switch(checked = value, onCheckedChange = onChange)
+    }
+}

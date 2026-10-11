@@ -31,9 +31,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SortByAlpha
@@ -90,7 +92,7 @@ private val Badge = Color(0xFFE53935)
 private val PlayBlue = Color(0xFF1E88E5)
 
 @Composable
-fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
+fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, onTheme: (String) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var videos by remember { mutableStateOf<List<VideoFile>>(emptyList()) }
@@ -99,6 +101,8 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
     var searching by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(0) }
     var openFolder by remember { mutableStateOf<VideoFolder?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showVault by remember { mutableStateOf(false) }
     var pendingConsent by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -114,7 +118,13 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
         }
     }
     LaunchedEffect(Unit) { reload() }
-    BackHandler(enabled = openFolder != null) { openFolder = null }
+    BackHandler(enabled = openFolder != null || showSettings || showVault) {
+        when {
+            showVault -> showVault = false
+            showSettings -> showSettings = false
+            else -> openFolder = null
+        }
+    }
 
     val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
         .let { LibraryGrouping.filter(it, query) }
@@ -126,6 +136,14 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
             }
         }
 
+    if (showSettings) {
+        SettingsScreen(onBack = { showSettings = false }, onTheme = onTheme, onOpenVault = { showSettings = false; showVault = true })
+        return
+    }
+    if (showVault) {
+        VaultScreen(onBack = { showVault = false }, onPlay = onPlay)
+        return
+    }
     if (openFolder != null) {
         FolderVideosScreen(
             folder = folders.firstOrNull { it.name == openFolder?.name } ?: openFolder!!,
@@ -172,6 +190,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit) {
                 IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
                 IconButton(onClick = { sortMode = (sortMode + 1) % 3 }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = Color.White) }
                 IconButton(onClick = { reload() }) { Icon(Icons.Default.Refresh, "Refresh", tint = Color.White) }
+                IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Color.White) }
             }
             if (searching) {
                 OutlinedTextField(
@@ -248,6 +267,7 @@ private fun FolderVideosScreen(
     var sortKey by remember { mutableStateOf("date") }
     var sortAsc by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var subtitles by remember { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(folder.name) {
@@ -326,11 +346,18 @@ private fun FolderVideosScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Delete") },
-                                leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                text = { Text("Add to vault") },
+                                leadingIcon = { Icon(Icons.Default.Lock, null) },
                                 onClick = {
                                     menuFor = null
-                                    deleteTarget = video
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            dev.videoplayer.app.vault.VaultStore.add(context, android.net.Uri.parse(video.uri), video.name, video.durationMs, video.folder)
+                                            context.contentResolver.delete(android.net.Uri.parse(video.uri), null, null)
+                                        }
+                                        toast(context, "Moved to vault")
+                                        onBack()
+                                    }
                                 }
                             )
                         }

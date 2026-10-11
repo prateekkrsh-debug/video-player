@@ -12,6 +12,11 @@ private val Scheme = darkColorScheme(
 )
 
 @Composable
-fun VideoPlayerTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = Scheme, content = content)
+fun VideoPlayerTheme(theme: String = "Dark", content: @Composable () -> Unit) {
+    val scheme = when (theme) {
+        "Light" -> androidx.compose.material3.lightColorScheme(background = Color.White, surface = Color(0xFFF4F4F4), primary = Color(0xFF1E88E5))
+        "AMOLED" -> darkColorScheme(background = Color.Black, surface = Color.Black, primary = Color(0xFF1E88E5))
+        else -> Scheme
+    }
+    MaterialTheme(colorScheme = scheme, content = content)
 }
