@@ -198,6 +198,9 @@ private fun VaultPicker(onBack: () -> Unit, onAdd: (VideoFile) -> Unit) {
         videos = withContext(Dispatchers.IO) { VideoLibrary.scan(context) }
     }
     val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
+    BackHandler {
+        if (folder != null) folder = null else onBack()
+    }
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (folder != null) folder = null else onBack() }) {
