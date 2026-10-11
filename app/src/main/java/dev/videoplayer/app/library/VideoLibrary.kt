@@ -13,7 +13,8 @@ object VideoLibrary {
             MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
             MediaStore.Video.Media.DURATION,
             MediaStore.Video.Media.SIZE,
-            MediaStore.Video.Media.DATE_ADDED
+            MediaStore.Video.Media.DATE_ADDED,
+            MediaStore.Video.Media.HEIGHT
         )
         val out = ArrayList<VideoFile>()
         context.contentResolver.query(collection, projection, null, null, "${MediaStore.Video.Media.DATE_ADDED} DESC")?.use { cursor ->
@@ -23,6 +24,7 @@ object VideoLibrary {
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
             val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
             val addedCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+            val heightCol = cursor.getColumnIndex(MediaStore.Video.Media.HEIGHT)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 out += VideoFile(
@@ -32,7 +34,8 @@ object VideoLibrary {
                     folder = cursor.getString(folderCol) ?: "Unknown",
                     durationMs = cursor.getLong(durationCol),
                     sizeBytes = cursor.getLong(sizeCol),
-                    dateAddedSec = cursor.getLong(addedCol)
+                    dateAddedSec = cursor.getLong(addedCol),
+                    resolutionHeight = if (heightCol >= 0) cursor.getInt(heightCol) else 0
                 )
             }
         }

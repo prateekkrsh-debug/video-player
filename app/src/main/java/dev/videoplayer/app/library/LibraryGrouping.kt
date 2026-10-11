@@ -7,7 +7,8 @@ data class VideoFile(
     val folder: String,
     val durationMs: Long,
     val sizeBytes: Long,
-    val dateAddedSec: Long
+    val dateAddedSec: Long,
+    val resolutionHeight: Int = 0
 )
 
 data class VideoFolder(
@@ -41,5 +42,27 @@ object LibraryGrouping {
             if (videos.isEmpty() && !folder.name.lowercase().contains(q)) null
             else folder.copy(videos = if (folder.name.lowercase().contains(q)) folder.videos else videos)
         }
+    }
+
+    fun sortVideos(videos: List<VideoFile>, key: String, newest: Boolean): List<VideoFile> {
+        val sorted = when (key) {
+            "title" -> videos.sortedBy { it.name.lowercase() }
+            "length" -> videos.sortedBy { it.durationMs }
+            "size" -> videos.sortedBy { it.sizeBytes }
+            "resolution" -> videos.sortedBy { it.resolutionHeight }
+            else -> videos.sortedBy { it.dateAddedSec }
+        }
+        return if (newest) sorted.reversed() else sorted
+    }
+
+    fun sortFolders(folders: List<VideoFolder>, key: String, newest: Boolean): List<VideoFolder> {
+        val sorted = when (key) {
+            "title" -> folders.sortedBy { it.name.lowercase() }
+            "length" -> folders.sortedBy { it.videos.sumOf { video -> video.durationMs } }
+            "size" -> folders.sortedBy { it.videos.sumOf { video -> video.sizeBytes } }
+            "resolution" -> folders.sortedBy { it.videos.maxOfOrNull { video -> video.resolutionHeight } ?: 0 }
+            else -> folders.sortedBy { it.videos.maxOfOrNull { video -> video.dateAddedSec } ?: 0 }
+        }
+        return if (newest) sorted.reversed() else sorted
     }
 }

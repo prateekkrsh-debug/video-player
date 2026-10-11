@@ -69,7 +69,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.videoplayer.app.library.LibraryGrouping
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import dev.videoplayer.app.settings.OrganizePrefs
 import dev.videoplayer.app.library.VideoFile
 import dev.videoplayer.app.library.VideoFileActions
 import dev.videoplayer.app.library.VideoFolder
@@ -102,7 +105,11 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
     var loading by remember { mutableStateOf(true) }
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf(0) }
+    var showOrganize by remember { mutableStateOf(false) }
+    var viewMode by remember { mutableStateOf(OrganizePrefs.viewMode(context)) }
+    var layoutMode by remember { mutableStateOf(OrganizePrefs.layout(context)) }
+    var sortKey by remember { mutableStateOf(OrganizePrefs.sortKey(context)) }
+    var newest by remember { mutableStateOf(OrganizePrefs.newest(context)) }
     var openFolder by remember { mutableStateOf<VideoFolder?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var showVault by remember { mutableStateOf(false) }
@@ -133,15 +140,16 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
         }
     }
 
-    val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
-        .let { LibraryGrouping.filter(it, query) }
-        .let {
-            when (sortMode) {
-                1 -> it.sortedByDescending { folder -> folder.videos.size }
-                2 -> it.sortedByDescending { folder -> folder.videos.maxOfOrNull { video -> video.dateAddedSec } ?: 0 }
-                else -> it
-            }
-        }
+    val folders = LibraryGrouping.sortFolders(
+        LibraryGrouping.filter(LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000), query),
+        sortKey,
+        newest
+    )
+    val flatVideos = LibraryGrouping.sortVideos(
+        videos.filter { query.isBlank() || it.name.contains(query, true) || it.folder.contains(query, true) },
+        sortKey,
+        newest
+    )
 
     if (showSettings) {
         SettingsScreen(onBack = { showSettings = false }, onTheme = onTheme, onOpenVault = { showSettings = false; showVault = true })
@@ -219,7 +227,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
             ) {
                 Text("Folders", color = colors.onBackground, fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = colors.onBackground) }
-                IconButton(onClick = { sortMode = (sortMode + 1) % 3 }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = colors.onBackground) }
+                IconButton(onClick = { showOrganize = true }) { Icon(Icons.Default.SortByAlpha, "Organize", tint = colors.onBackground) }
                 IconButton(onClick = { reload() }) { Icon(Icons.Default.Refresh, "Refresh", tint = colors.onBackground) }
                 IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = colors.onBackground) }
             }
@@ -237,6 +245,42 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
             } else if (folders.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No videos found", color = Muted)
+                }
+            } else if (viewMode == "files") {
+                if (layoutMode == "grid") {
+                    LazyVerticalGrid(GridCells.Fixed(2), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(flatVideos, key = { it.uri }) { video ->
+                            Column(Modifier.clickable { onPlay(flatVideos, flatVideos.indexOf(video)) }) {
+                                VideoThumb(video, false)
+                                Text(video.name, color = colors.onBackground, maxLines = 1, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
+                        items(flatVideos, key = { it.uri }) { video ->
+                            Row(Modifier.fillMaxWidth().clickable { onPlay(flatVideos, flatVideos.indexOf(video)) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                VideoThumb(video, false)
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(video.name, color = colors.onBackground, maxLines = 2)
+                                    Text(video.folder, color = colors.onBackground.copy(alpha = 0.65f), fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (layoutMode == "grid") {
+                LazyVerticalGrid(GridCells.Fixed(2), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(folders, key = { it.name }) { folder ->
+                        Column(Modifier.clickable { openFolder = folder }.padding(6.dp)) {
+                            Box(Modifier.size(150.dp).clip(RoundedCornerShape(10.dp)).background(Card), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Folder, null, tint = Color(0xFF8E96A3), modifier = Modifier.size(48.dp))
+                            }
+                            Text(folder.name, color = colors.onBackground, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+                            Text("${folder.videos.size} videos", color = colors.onBackground.copy(alpha = 0.65f), fontSize = 12.sp)
+                        }
+                    }
                 }
             } else {
                 LazyColumn(state = folderListState, contentPadding = PaddingValues(bottom = 96.dp)) {

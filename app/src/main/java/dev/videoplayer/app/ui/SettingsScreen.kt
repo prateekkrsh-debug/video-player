@@ -81,7 +81,7 @@ fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: (
             IconChoice(choice, icon == choice) {
                 icon = choice
                 AppIdentity.apply(context, icon, name)
-                toast(context, "Icon updated. Home screen may take a few seconds.")
+                toast(context, "${choice.replaceFirstChar { it.uppercase() }} icon selected")
             }
         }
         Section("App name")

@@ -34,6 +34,11 @@ object AppIdentity {
         val pm = context.packageManager
         val selected = alias(icon, name)
         val all = icons.flatMap { chosenIcon -> names.map { chosenName -> alias(chosenIcon, chosenName) } }
+        pm.setComponentEnabledSetting(
+            ComponentName(context.packageName, selected),
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP
+        )
         all.filterNot { it == selected }.forEach { className ->
             pm.setComponentEnabledSetting(
                 ComponentName(context.packageName, className),
@@ -41,14 +46,16 @@ object AppIdentity {
                 PackageManager.DONT_KILL_APP
             )
         }
-        pm.setComponentEnabledSetting(
-            ComponentName(context.packageName, selected),
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-            PackageManager.DONT_KILL_APP
-        )
         context.getSharedPreferences("identity", Context.MODE_PRIVATE).edit()
             .putString("icon", icon)
             .putString("name", name)
             .apply()
+    }
+
+    fun launcherIcon(icon: String) = when (icon) {
+        "film" -> "ic_launcher_film"
+        "shield" -> "ic_launcher_shield"
+        "star" -> "ic_launcher_star"
+        else -> "ic_launcher"
     }
 }
