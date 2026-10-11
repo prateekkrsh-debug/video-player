@@ -1,8 +1,6 @@
 package dev.videoplayer.app.ui
 
 import android.content.Context
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -36,12 +34,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import dev.videoplayer.app.player.GesturePrefs
 import dev.videoplayer.app.settings.AppIdentity
 import dev.videoplayer.app.settings.ThemePrefs
-import dev.videoplayer.app.vault.VaultStore
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: () -> Unit) {
@@ -54,8 +49,6 @@ fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: (
     var icon by remember { mutableStateOf(identity.first) }
     var name by remember { mutableStateOf(identity.second) }
     var customName by remember { mutableStateOf(AppIdentity.customName(context)) }
-    var password by remember { mutableStateOf("") }
-    var fingerprint by remember { mutableStateOf(VaultStore.fingerprint(context)) }
     Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
@@ -87,35 +80,10 @@ fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: (
         }) { Text("Save typed name") }
         Text("Android does not allow an app to set a free-typed name on the home screen icon. The typed name is used inside the app and in recent apps.", color = Color(0xFFB7BDC7), fontSize = 13.sp)
         Section("Private vault")
-        Text("Videos moved into the vault are removed from the library and other players. They stay on this device and play only after unlock.", color = Color(0xFFB7BDC7), fontSize = 13.sp)
-        OutlinedTextField(password, { password = it }, label = { Text("Vault password") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-        TextButton(onClick = {
-            if (password.length >= 4) {
-                VaultStore.setPassword(context, password)
-                toast(context, "Vault password saved")
-            } else toast(context, "Use at least 4 characters")
-        }) { Text("Save password") }
-        Toggle("Allow fingerprint", fingerprint) { fingerprint = it; VaultStore.setFingerprint(context, it) }
-        Row(Modifier.fillMaxWidth().clickable { unlockVault(context, onOpenVault) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onOpenVault).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Lock, null, tint = Color.White)
-            Text("Open vault", color = Color.White, modifier = Modifier.padding(start = 12.dp))
+            Text("Private vault", color = Color.White, modifier = Modifier.padding(start = 12.dp))
         }
-    }
-}
-
-private fun unlockVault(context: Context, onOpen: () -> Unit) {
-    if (!VaultStore.hasPassword(context)) {
-        toast(context, "Set a vault password first")
-        return
-    }
-    val activity = context as? FragmentActivity
-    if (VaultStore.fingerprint(context) && activity != null && BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS) {
-        val prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(context), object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onOpen()
-        })
-        prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Open vault").setNegativeButtonText("Use password").build())
-    } else {
-        toast(context, "Enter the vault password in Settings, then open again")
     }
 }
 
