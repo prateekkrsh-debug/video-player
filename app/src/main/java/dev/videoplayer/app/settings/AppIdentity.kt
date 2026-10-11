@@ -32,18 +32,20 @@ object AppIdentity {
 
     fun apply(context: Context, icon: String, name: String) {
         val pm = context.packageManager
-        icons.flatMap { chosenIcon -> names.map { chosenName -> alias(chosenIcon, chosenName) } }.forEach { className ->
-            val state = if (className == alias(icon, name)) {
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            } else {
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            }
+        val selected = alias(icon, name)
+        val all = icons.flatMap { chosenIcon -> names.map { chosenName -> alias(chosenIcon, chosenName) } }
+        all.filterNot { it == selected }.forEach { className ->
             pm.setComponentEnabledSetting(
-                ComponentName(context, className),
-                state,
+                ComponentName(context.packageName, className),
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP
             )
         }
+        pm.setComponentEnabledSetting(
+            ComponentName(context.packageName, selected),
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP
+        )
         context.getSharedPreferences("identity", Context.MODE_PRIVATE).edit()
             .putString("icon", icon)
             .putString("name", name)

@@ -333,9 +333,9 @@ private fun FolderVideosScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
+            IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = MaterialTheme.colorScheme.onBackground) }
             Box {
-                IconButton(onClick = { sortMenu = true }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = Color.White) }
+                IconButton(onClick = { sortMenu = true }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = MaterialTheme.colorScheme.onBackground) }
                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                     DropdownMenuItem(text = { Text("Name A–Z") }, onClick = { sortKey = "name"; sortAsc = true; sortMenu = false })
                     DropdownMenuItem(text = { Text("Name Z–A") }, onClick = { sortKey = "name"; sortAsc = false; sortMenu = false })
@@ -363,14 +363,14 @@ private fun FolderVideosScreen(
                     VideoThumb(video, recent)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(video.name, color = Color.White, maxLines = 2, fontSize = 15.sp)
-                        Text(formatSize(video.sizeBytes), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text(video.name, color = MaterialTheme.colorScheme.onBackground, maxLines = 2, fontSize = 15.sp)
+                        Text(formatSize(video.sizeBytes), color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                         if (subtitles.contains(stem)) {
                             Text("SRT", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF2E7D32)).padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                     }
                     Box {
-                        IconButton(onClick = { menuFor = video }) { Icon(Icons.Default.MoreVert, "More", tint = Color.White) }
+                        IconButton(onClick = { menuFor = video }) { Icon(Icons.Default.MoreVert, "More", tint = MaterialTheme.colorScheme.onBackground) }
                         DropdownMenu(expanded = menuFor == video, onDismissRequest = { menuFor = null }) {
                             DropdownMenuItem(
                                 text = { Text("Rename") },

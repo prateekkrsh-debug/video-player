@@ -110,7 +110,7 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
         }
         if (!hasPassword) {
             Column(Modifier.padding(16.dp)) {
-                Text("Set a vault password", color = Color.White, fontSize = 18.sp)
+                Text("Set a vault password", color = MaterialTheme.colorScheme.onBackground, fontSize = 18.sp)
                 OutlinedTextField(password, { password = it }, label = { Text("Password") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
                 OutlinedTextField(confirm, { confirm = it }, label = { Text("Confirm password") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
                 TextButton(onClick = {
@@ -167,7 +167,7 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Enable fingerprint", color = Color.White, modifier = Modifier.weight(1f))
+                        Text("Enable fingerprint", color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                         Switch(checked = fingerprint, onCheckedChange = {
                             fingerprint = it
                             VaultStore.setFingerprint(context, it)
@@ -198,7 +198,7 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
                             }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 VideoThumb(item.toVideo(), false)
                                 Spacer(Modifier.width(12.dp))
-                                Text(item.name, color = Color.White, modifier = Modifier.weight(1f))
+                                Text(item.name, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                                 Checkbox(checked = checked, onCheckedChange = {
                                     selected = if (it) selected + item.id else selected - item.id
                                 })
@@ -247,7 +247,7 @@ private fun VaultPicker(folder: VideoFolder?, onFolder: (VideoFolder?) -> Unit, 
                     }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         VideoThumb(video, false)
                         Spacer(Modifier.width(12.dp))
-                        Text(video.name, color = Color.White, modifier = Modifier.weight(1f))
+                        Text(video.name, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                         Icon(Icons.Default.Add, "Add", tint = Color.White)
                     }
                 }

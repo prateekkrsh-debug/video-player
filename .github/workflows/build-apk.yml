@@ -40,10 +40,10 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.24.0
-          name: Video Player 2.24.0
+          tag_name: v2.25.0
+          name: Video Player 2.25.0
           body: |
-            Settings no longer closes the app when the gear is opened.
+            Light themes use black text. Selecting an app icon enables only that icon.
             Debug APK for sideloading.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true

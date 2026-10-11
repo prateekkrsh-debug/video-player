@@ -78,7 +78,11 @@ fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: (
         Section("App icon")
         Text("The home screen may take a few seconds to update.", color = colors.onBackground.copy(alpha = 0.7f), fontSize = 13.sp)
         AppIdentity.icons.forEach { choice ->
-            IconChoice(choice, icon == choice) { icon = choice; AppIdentity.apply(context, icon, name) }
+            IconChoice(choice, icon == choice) {
+                icon = choice
+                AppIdentity.apply(context, icon, name)
+                toast(context, "Icon updated. Home screen may take a few seconds.")
+            }
         }
         Section("App name")
         AppIdentity.names.forEach { choice -> Choice(choice, name == choice) { name = choice; AppIdentity.apply(context, icon, name) } }
@@ -113,14 +117,20 @@ private fun IconChoice(icon: String, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Image(
-            painter = runCatching { painterResource(AppIdentity.iconRes(icon)) }.getOrNull()
-                ?: painterResource(dev.videoplayer.app.R.drawable.ic_launcher_foreground),
+            painter = painterResource(AppIdentity.iconRes(icon)),
             contentDescription = icon,
-            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF1E88E5))
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(iconTint(icon))
         )
         Spacer(Modifier.width(14.dp))
         Text(if (selected) "● ${icon.replaceFirstChar { it.uppercase() }}" else icon.replaceFirstChar { it.uppercase() }, color = colors.onBackground)
     }
+}
+
+private fun iconTint(icon: String) = when (icon) {
+    "film" -> Color(0xFF3949AB)
+    "shield" -> Color(0xFF2E7D32)
+    "star" -> Color(0xFFF9A825)
+    else -> Color(0xFFE8A15A)
 }
 
 private fun swatch(theme: String) = when (theme) {
