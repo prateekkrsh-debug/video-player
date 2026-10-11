@@ -73,13 +73,21 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
     var fingerprint by remember { mutableStateOf(VaultStore.fingerprint(context)) }
     var items by remember { mutableStateOf(VaultStore.items(context)) }
     var picking by remember { mutableStateOf(false) }
+    var pickerFolder by remember { mutableStateOf<VideoFolder?>(null) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     val scope = rememberCoroutineScope()
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) toast(context, "Removed from the library")
         else toast(context, "Added to vault. Allow removal to hide it from the library.")
     }
-    BackHandler(enabled = picking) { picking = false }
+    fun stepBack() {
+        when {
+            pickerFolder != null -> pickerFolder = null
+            picking -> picking = false
+            else -> onBack()
+        }
+    }
+    BackHandler { stepBack() }
 
     LaunchedEffect(hasPassword) {
         val activity = context as? FragmentActivity ?: return@LaunchedEffect
@@ -96,8 +104,8 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
-            Text("Vault", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            IconButton(onClick = { stepBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+            Text(if (picking) pickerFolder?.name ?: "Add to vault" else "Vault", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         if (!hasPassword) {
             Column(Modifier.padding(16.dp)) {
@@ -126,7 +134,8 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
             }
         } else if (picking) {
             VaultPicker(
-                onBack = { picking = false },
+                folder = pickerFolder,
+                onFolder = { pickerFolder = it },
                 onAdd = { video ->
                     try {
                         val result = withContext(Dispatchers.IO) {
@@ -210,37 +219,27 @@ private fun VaultItem.toVideo() = VideoFile(
 )
 
 @Composable
-private fun VaultPicker(onBack: () -> Unit, onAdd: suspend (VideoFile) -> Boolean) {
+private fun VaultPicker(folder: VideoFolder?, onFolder: (VideoFolder?) -> Unit, onAdd: suspend (VideoFile) -> Boolean) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var videos by remember { mutableStateOf<List<VideoFile>>(emptyList()) }
-    var folder by remember { mutableStateOf<VideoFolder?>(null) }
     LaunchedEffect(Unit) {
         videos = withContext(Dispatchers.IO) { VideoLibrary.scan(context) }
     }
     val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
-    BackHandler {
-        if (folder != null) folder = null else onBack()
-    }
     Column(Modifier.fillMaxSize().background(Color.Black)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (folder != null) folder = null else onBack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
-            }
-            Text(folder?.name ?: "Add to vault", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        }
         if (folder == null) {
             LazyColumn {
                 items(folders, key = { it.name }) { item ->
-                    FolderRow(item) { folder = item }
+                    FolderRow(item) { onFolder(item) }
                 }
             }
         } else {
             LazyColumn {
-                items(folder!!.videos, key = { it.uri }) { video ->
+                items(folder.videos, key = { it.uri }) { video ->
                     Row(Modifier.fillMaxWidth().clickable {
                         scope.launch {
-                            if (onAdd(video)) folder = folder?.copy(videos = folder!!.videos.filterNot { it.uri == video.uri })
+                            if (onAdd(video)) onFolder(folder.copy(videos = folder.videos.filterNot { it.uri == video.uri }))
                         }
                     }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         VideoThumb(video, false)
