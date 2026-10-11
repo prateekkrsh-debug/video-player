@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -104,6 +106,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
     var showSettings by remember { mutableStateOf(false) }
     var showVault by remember { mutableStateOf(false) }
     var pendingConsent by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val folderListState = rememberLazyListState()
 
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
         pendingConsent?.invoke()
@@ -174,8 +177,9 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
         return
     }
 
+    val colors = MaterialTheme.colorScheme
     Scaffold(
-        containerColor = Ink,
+        containerColor = colors.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { onResume() },
@@ -184,16 +188,16 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
             ) { Icon(Icons.Default.PlayArrow, "Play latest", tint = Color.White) }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).background(Ink)) {
+        Column(Modifier.fillMaxSize().padding(padding).background(colors.background)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(dev.videoplayer.app.settings.AppIdentity.customName(context).ifBlank { "Folders" }, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = Color.White) }
-                IconButton(onClick = { sortMode = (sortMode + 1) % 3 }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = Color.White) }
-                IconButton(onClick = { reload() }) { Icon(Icons.Default.Refresh, "Refresh", tint = Color.White) }
-                IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Color.White) }
+                Text("Folders", color = colors.onBackground, fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = { searching = !searching }) { Icon(Icons.Default.Search, "Search", tint = colors.onBackground) }
+                IconButton(onClick = { sortMode = (sortMode + 1) % 3 }) { Icon(Icons.Default.SortByAlpha, "Sort", tint = colors.onBackground) }
+                IconButton(onClick = { reload() }) { Icon(Icons.Default.Refresh, "Refresh", tint = colors.onBackground) }
+                IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = colors.onBackground) }
             }
             if (searching) {
                 OutlinedTextField(
@@ -211,7 +215,7 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
                     Text("No videos found", color = Muted)
                 }
             } else {
-                LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
+                LazyColumn(state = folderListState, contentPadding = PaddingValues(bottom = 96.dp)) {
                     items(folders, key = { it.name }) { folder ->
                         FolderRow(folder) { openFolder = folder }
                     }
@@ -247,8 +251,8 @@ internal fun FolderRow(folder: VideoFolder, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(16.dp))
         Column {
-            Text(folder.name, color = Color.White, fontSize = 18.sp)
-            Text("${folder.videos.size} videos", color = Muted, fontSize = 14.sp)
+            Text(folder.name, color = MaterialTheme.colorScheme.onBackground, fontSize = 18.sp)
+            Text("${folder.videos.size} videos", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), fontSize = 14.sp)
         }
     }
 }
@@ -288,12 +292,12 @@ private fun FolderVideosScreen(
             }
             if (sortAsc) sorted else sorted.reversed()
         }
-    Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onBackground) }
             Text(
                 folder.name,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,

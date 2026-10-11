@@ -4,6 +4,12 @@
     <string name="app_name_movies">Movies</string>
     <string name="app_name_player">Player</string>
     <string name="app_name_films">Films</string>
+    <string name="app_name_calculator">Calculator</string>
+    <string name="app_name_notes">Notes</string>
+    <string name="app_name_weather">Weather</string>
+    <string name="app_name_gallery">Gallery</string>
+    <string name="app_name_files">Files</string>
+    <string name="app_name_clock">Clock</string>
     <string name="home">Home</string>
     <string name="search">Search</string>
     <string name="library">Library</string>

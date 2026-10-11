@@ -31,7 +31,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -102,10 +102,10 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { stepBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
-            Text(if (picking) pickerFolder?.name ?: "Add to vault" else "Vault", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            IconButton(onClick = { stepBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onBackground) }
+            Text(if (picking) pickerFolder?.name ?: "Add to vault" else "Vault", color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         if (!hasPassword) {
             Column(Modifier.padding(16.dp)) {
@@ -229,7 +229,7 @@ private fun VaultPicker(folder: VideoFolder?, onFolder: (VideoFolder?) -> Unit, 
         videos = withContext(Dispatchers.IO) { VideoLibrary.scan(context) }
     }
     val folders = LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000)
-    Column(Modifier.fillMaxSize().background(Color.Black)) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (folder == null) {
             LazyColumn {
                 items(folders, key = { it.name }) { item ->
