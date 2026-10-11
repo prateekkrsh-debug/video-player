@@ -15,6 +15,14 @@ object AppIdentity {
         return prefs.getString("icon", "play").orEmpty() to prefs.getString("name", "Video Player").orEmpty()
     }
 
+    fun customName(context: Context) = context.getSharedPreferences("identity", Context.MODE_PRIVATE).getString("custom", "").orEmpty()
+
+    fun setCustomName(context: Context, value: String) {
+        context.getSharedPreferences("identity", Context.MODE_PRIVATE).edit().putString("custom", value.trim()).apply()
+        val activity = context as? android.app.Activity ?: return
+        activity.setTaskDescription(android.app.ActivityManager.TaskDescription(value.trim().ifBlank { "Video Player" }))
+    }
+
     fun apply(context: Context, icon: String, name: String) {
         val pm = context.packageManager
         icons.flatMap { chosenIcon -> names.map { chosenName -> alias(chosenIcon, chosenName) } }.forEach { className ->

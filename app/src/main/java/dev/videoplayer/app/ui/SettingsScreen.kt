@@ -53,6 +53,7 @@ fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: (
     val identity = remember { AppIdentity.current(context) }
     var icon by remember { mutableStateOf(identity.first) }
     var name by remember { mutableStateOf(identity.second) }
+    var customName by remember { mutableStateOf(AppIdentity.customName(context)) }
     var password by remember { mutableStateOf("") }
     var fingerprint by remember { mutableStateOf(VaultStore.fingerprint(context)) }
     Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -61,7 +62,7 @@ fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: (
             Text("Settings", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         Section("Theme")
-        listOf("Dark", "Light", "AMOLED").forEach { choice ->
+        listOf("Dark", "AMOLED", "Midnight", "Ocean", "Forest", "Sunset", "Light", "Paper").forEach { choice ->
             Choice(choice, theme == choice) {
                 theme = choice
                 ThemePrefs.set(context, choice)
@@ -79,6 +80,12 @@ fun SettingsScreen(onBack: () -> Unit, onTheme: (String) -> Unit, onOpenVault: (
         Text("Android can only switch among names built into the app. The home screen may take a few seconds to update.", color = Color(0xFFB7BDC7), fontSize = 13.sp)
         AppIdentity.icons.forEach { choice -> Choice("Icon: $choice", icon == choice) { icon = choice; AppIdentity.apply(context, icon, name) } }
         AppIdentity.names.forEach { choice -> Choice(choice, name == choice) { name = choice; AppIdentity.apply(context, icon, name) } }
+        OutlinedTextField(customName, { customName = it }, label = { Text("Custom app name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        TextButton(onClick = {
+            AppIdentity.setCustomName(context, customName)
+            toast(context, "Name saved in the app and recent apps. The home screen icon can only use the four built-in names.")
+        }) { Text("Save typed name") }
+        Text("Android does not allow an app to set a free-typed name on the home screen icon. The typed name is used inside the app and in recent apps.", color = Color(0xFFB7BDC7), fontSize = 13.sp)
         Section("Private vault")
         Text("Videos moved into the vault are removed from the library and other players. They stay on this device and play only after unlock.", color = Color(0xFFB7BDC7), fontSize = 13.sp)
         OutlinedTextField(password, { password = it }, label = { Text("Vault password") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
