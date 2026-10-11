@@ -40,10 +40,10 @@ jobs:
       - name: Publish APK on the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.16.0
-          name: Video Player 2.16.0
+          tag_name: v2.17.0
+          name: Video Player 2.17.0
           body: |
-            Vault plus button browses folders to move videos in. Selected vault videos can be restored together.
+            Back from a vault folder returns to the folder list, not out of the vault.
             Debug APK for sideloading.
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true

@@ -1,6 +1,6 @@
 package dev.videoplayer.app.ui
 
-import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
@@ -68,6 +68,7 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
     var picking by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     val scope = rememberCoroutineScope()
+    BackHandler(enabled = picking) { picking = false }
 
     LaunchedEffect(hasPassword) {
         val activity = context as? FragmentActivity ?: return@LaunchedEffect
