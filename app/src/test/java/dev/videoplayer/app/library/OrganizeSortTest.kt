@@ -12,14 +12,14 @@ class OrganizeSortTest {
 
     @Test
     fun sortsByTitleAndDate() {
-        assertEquals(listOf("a.mp4", "b.mp4", "c.mp4"), LibraryGrouping.sortVideos(videos, "title", false).map { it.name })
-        assertEquals(listOf(30L, 20L, 10L), LibraryGrouping.sortVideos(videos, "date", true).map { it.dateAddedSec })
+        assertEquals(listOf("a.mp4", "b.mp4", "c.mp4"), LibraryGrouping.sortVideos(videos, "title").map { it.name })
+        assertEquals(listOf(30L, 20L, 10L), LibraryGrouping.sortVideos(videos, "newest").map { it.dateAddedSec })
+        assertEquals(listOf(10L, 20L, 30L), LibraryGrouping.sortVideos(videos, "oldest").map { it.dateAddedSec })
     }
 
     @Test
-    fun sortsByLengthSizeAndResolution() {
-        assertEquals(listOf(20_000L, 10_000L, 5_000L), LibraryGrouping.sortVideos(videos, "length", true).map { it.durationMs })
-        assertEquals(listOf(1_000L, 2_000L, 9_000L), LibraryGrouping.sortVideos(videos, "size", false).map { it.sizeBytes })
-        assertEquals(listOf(1080, 720, 480), LibraryGrouping.sortVideos(videos, "resolution", true).map { it.resolutionHeight })
+    fun sortsByLengthAndSize() {
+        assertEquals(listOf(20_000L, 10_000L, 5_000L), LibraryGrouping.sortVideos(videos, "length").map { it.durationMs })
+        assertEquals(listOf(9_000L, 2_000L, 1_000L), LibraryGrouping.sortVideos(videos, "size").map { it.sizeBytes })
     }
 }

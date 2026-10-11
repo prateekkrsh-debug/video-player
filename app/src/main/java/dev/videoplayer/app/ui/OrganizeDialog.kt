@@ -10,10 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.SortByAlpha
@@ -42,14 +43,12 @@ fun OrganizeDialog(
     view: String,
     layout: String,
     sort: String,
-    newest: Boolean,
     onDismiss: () -> Unit,
-    onDone: (String, String, String, Boolean) -> Unit
+    onDone: (String, String, String) -> Unit
 ) {
     var viewMode by remember { mutableStateOf(view) }
     var layoutMode by remember { mutableStateOf(layout) }
     var sortKey by remember { mutableStateOf(sort) }
-    var newestFirst by remember { mutableStateOf(newest) }
     val accent = Color(0xFF1E88E5)
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFF2A2D33)) {
@@ -70,15 +69,14 @@ fun OrganizeDialog(
                     Mode("Date", Icons.Default.CalendarMonth, sortKey == "date", accent) { sortKey = "date" }
                     Mode("Length", Icons.Default.Timer, sortKey == "length", accent) { sortKey = "length" }
                     Mode("Size", Icons.Default.SdStorage, sortKey == "size", accent) { sortKey = "size" }
-                    Mode("Resolution", Icons.Default.HighQuality, sortKey == "resolution", accent) { sortKey = "resolution" }
                 }
-                Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OrderButton("↑  Oldest", !newestFirst, accent, Modifier.weight(1f)) { newestFirst = false }
-                    OrderButton("↓  Newest", newestFirst, accent, Modifier.weight(1f)) { newestFirst = true }
+                Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Mode("Oldest", Icons.Default.ArrowUpward, sortKey == "oldest", accent) { sortKey = "oldest" }
+                    Mode("Newest", Icons.Default.ArrowDownward, sortKey == "newest", accent) { sortKey = "newest" }
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White) }
-                    TextButton(onClick = { onDone(viewMode, layoutMode, sortKey, newestFirst) }) { Text("Done", color = accent, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { onDone(viewMode, layoutMode, sortKey) }) { Text("Done", color = accent, fontWeight = FontWeight.Bold) }
                 }
             }
         }

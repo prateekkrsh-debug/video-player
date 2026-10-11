@@ -44,25 +44,24 @@ object LibraryGrouping {
         }
     }
 
-    fun sortVideos(videos: List<VideoFile>, key: String, newest: Boolean): List<VideoFile> {
-        val sorted = when (key) {
+    fun sortVideos(videos: List<VideoFile>, key: String): List<VideoFile> {
+        return when (key) {
             "title" -> videos.sortedBy { it.name.lowercase() }
-            "length" -> videos.sortedBy { it.durationMs }
-            "size" -> videos.sortedBy { it.sizeBytes }
-            "resolution" -> videos.sortedBy { it.resolutionHeight }
-            else -> videos.sortedBy { it.dateAddedSec }
+            "length" -> videos.sortedByDescending { it.durationMs }
+            "size" -> videos.sortedByDescending { it.sizeBytes }
+            "oldest" -> videos.sortedBy { it.dateAddedSec }
+            "newest", "date" -> videos.sortedByDescending { it.dateAddedSec }
+            else -> videos.sortedByDescending { it.dateAddedSec }
         }
-        return if (newest) sorted.reversed() else sorted
     }
 
-    fun sortFolders(folders: List<VideoFolder>, key: String, newest: Boolean): List<VideoFolder> {
-        val sorted = when (key) {
+    fun sortFolders(folders: List<VideoFolder>, key: String): List<VideoFolder> {
+        return when (key) {
             "title" -> folders.sortedBy { it.name.lowercase() }
-            "length" -> folders.sortedBy { it.videos.sumOf { video -> video.durationMs } }
-            "size" -> folders.sortedBy { it.videos.sumOf { video -> video.sizeBytes } }
-            "resolution" -> folders.sortedBy { it.videos.maxOfOrNull { video -> video.resolutionHeight } ?: 0 }
-            else -> folders.sortedBy { it.videos.maxOfOrNull { video -> video.dateAddedSec } ?: 0 }
+            "length" -> folders.sortedByDescending { it.videos.sumOf { video -> video.durationMs } }
+            "size" -> folders.sortedByDescending { it.videos.sumOf { video -> video.sizeBytes } }
+            "oldest" -> folders.sortedBy { it.videos.maxOfOrNull { video -> video.dateAddedSec } ?: 0 }
+            else -> folders.sortedByDescending { it.videos.maxOfOrNull { video -> video.dateAddedSec } ?: 0 }
         }
-        return if (newest) sorted.reversed() else sorted
     }
 }

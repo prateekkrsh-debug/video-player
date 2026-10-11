@@ -143,13 +143,11 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
 
     val folders = LibraryGrouping.sortFolders(
         LibraryGrouping.filter(LibraryGrouping.folders(videos, System.currentTimeMillis() / 1000), query),
-        sortKey,
-        newest
+        sortKey
     )
     val flatVideos = LibraryGrouping.sortVideos(
         videos.filter { query.isBlank() || it.name.contains(query, true) || it.folder.contains(query, true) },
-        sortKey,
-        newest
+        sortKey
     )
 
     if (showSettings) {
@@ -293,12 +291,11 @@ fun LibraryRoot(onPlay: (List<VideoFile>, Int) -> Unit, onResume: () -> Unit, on
         }
     }
     if (showOrganize) {
-        OrganizeDialog(viewMode, layoutMode, sortKey, newest, onDismiss = { showOrganize = false }) { view, layout, sort, newestFirst ->
+        OrganizeDialog(viewMode, layoutMode, sortKey, onDismiss = { showOrganize = false }) { view, layout, sort ->
             viewMode = view
             layoutMode = layout
             sortKey = sort
-            newest = newestFirst
-            OrganizePrefs.save(context, view, layout, sort, newestFirst)
+            OrganizePrefs.save(context, view, layout, sort, sort == "newest")
             showOrganize = false
         }
     }
