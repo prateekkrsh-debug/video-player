@@ -1,7 +1,13 @@
 package dev.videoplayer.app.ui
 
+import android.app.Activity
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
@@ -69,6 +75,10 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
     var picking by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     val scope = rememberCoroutineScope()
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) toast(context, "Removed from the library")
+        else toast(context, "Added to vault. Allow removal to hide it from the library.")
+    }
     BackHandler(enabled = picking) { picking = false }
 
     LaunchedEffect(hasPassword) {
@@ -118,12 +128,21 @@ fun VaultScreen(onBack: () -> Unit, onPlay: (List<VideoFile>, Int) -> Unit) {
             VaultPicker(
                 onBack = { picking = false },
                 onAdd = { video ->
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
+                    try {
+                        val result = withContext(Dispatchers.IO) {
                             VaultStore.add(context, Uri.parse(video.uri), video.name, video.durationMs, video.folder)
                         }
                         items = VaultStore.items(context)
-                        toast(context, "Moved to vault")
+                        if (result.needsDeleteConfirmation && Build.VERSION.SDK_INT >= 30) {
+                            val pending = MediaStore.createDeleteRequest(context.contentResolver, listOf(result.source))
+                            deleteLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                        } else {
+                            toast(context, "Moved to vault")
+                        }
+                        true
+                    } catch (error: Exception) {
+                        toast(context, error.message ?: "Could not add video")
+                        false
                     }
                 }
             )
@@ -191,8 +210,9 @@ private fun VaultItem.toVideo() = VideoFile(
 )
 
 @Composable
-private fun VaultPicker(onBack: () -> Unit, onAdd: (VideoFile) -> Unit) {
+private fun VaultPicker(onBack: () -> Unit, onAdd: suspend (VideoFile) -> Boolean) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var videos by remember { mutableStateOf<List<VideoFile>>(emptyList()) }
     var folder by remember { mutableStateOf<VideoFolder?>(null) }
     LaunchedEffect(Unit) {
@@ -218,7 +238,11 @@ private fun VaultPicker(onBack: () -> Unit, onAdd: (VideoFile) -> Unit) {
         } else {
             LazyColumn {
                 items(folder!!.videos, key = { it.uri }) { video ->
-                    Row(Modifier.fillMaxWidth().clickable { onAdd(video); folder = folder!!.copy(videos = folder!!.videos.filterNot { it.uri == video.uri }) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().clickable {
+                        scope.launch {
+                            if (onAdd(video)) folder = folder?.copy(videos = folder!!.videos.filterNot { it.uri == video.uri })
+                        }
+                    }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         VideoThumb(video, false)
                         Spacer(Modifier.width(12.dp))
                         Text(video.name, color = Color.White, modifier = Modifier.weight(1f))

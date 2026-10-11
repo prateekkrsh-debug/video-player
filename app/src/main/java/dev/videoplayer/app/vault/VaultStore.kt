@@ -8,6 +8,12 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 
+data class VaultAddResult(
+    val item: VaultItem,
+    val source: Uri,
+    val needsDeleteConfirmation: Boolean
+)
+
 data class VaultItem(
     val id: String,
     val name: String,
@@ -40,22 +46,26 @@ object VaultStore {
         }.filter { File(it.path).exists() }
     }
 
-    fun add(context: Context, source: Uri, name: String, durationMs: Long, folder: String): VaultItem {
-        val dir = File(context.getExternalFilesDir(null), "vault").apply { mkdirs() }
-        val file = File(dir, "${System.currentTimeMillis()}-$name")
-        val sourceFile = resolveFile(context, source)
-        val moved = sourceFile != null && sourceFile.exists() && sourceFile.renameTo(file)
+    fun add(context: Context, source: Uri, name: String, durationMs: Long, folder: String): VaultAddResult {
+        val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "vault").apply { mkdirs() }
+        val file = File(dir, "${System.currentTimeMillis()}-${safeName(name)}")
+        val sourceFile = runCatching { resolveFile(context, source) }.getOrNull()
+        val moved = runCatching { sourceFile != null && sourceFile.exists() && sourceFile.renameTo(file) }.getOrDefault(false)
         if (!moved) {
-            context.contentResolver.openInputStream(source)?.use { input ->
-                file.outputStream().use { input.copyTo(it) }
-            } ?: error("Could not read the video.")
-            context.contentResolver.delete(source, null, null)
-        } else {
-            context.contentResolver.delete(source, null, null)
+            val input = context.contentResolver.openInputStream(source)
+                ?: throw IllegalStateException("Could not read the video.")
+            input.use { stream -> file.outputStream().use { stream.copyTo(it) } }
+            if (!file.exists() || file.length() == 0L) throw IllegalStateException("Could not copy the video.")
         }
+        val removed = runCatching { context.contentResolver.delete(source, null, null) > 0 }.getOrDefault(false)
         val item = VaultItem(file.name, name, file.absolutePath, durationMs, file.length(), folder)
         save(context, items(context) + item)
-        return item
+        return VaultAddResult(item, source, !removed)
+    }
+
+    private fun safeName(name: String): String {
+        val cleaned = name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "video.mp4" }
+        return if (cleaned.length > 80) cleaned.takeLast(80) else cleaned
     }
 
     fun remove(context: Context, item: VaultItem) {
@@ -91,19 +101,20 @@ object VaultStore {
     }
 
     private fun resolveFile(context: Context, uri: Uri): File? {
-        return context.contentResolver.query(
-            uri,
-            arrayOf(MediaStore.Video.Media.DATA, MediaStore.Video.Media.RELATIVE_PATH, MediaStore.Video.Media.DISPLAY_NAME),
-            null,
-            null,
+        return try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(MediaStore.Video.Media.DATA),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return null
+                val data = cursor.getColumnIndex(MediaStore.Video.Media.DATA).takeIf { it >= 0 }?.let { cursor.getString(it) }
+                if (!data.isNullOrBlank()) File(data) else null
+            }
+        } catch (_: Exception) {
             null
-        )?.use { cursor ->
-            if (!cursor.moveToFirst()) return null
-            val data = cursor.getColumnIndex(MediaStore.Video.Media.DATA).takeIf { it >= 0 }?.let { cursor.getString(it) }
-            if (!data.isNullOrBlank()) return File(data)
-            val relative = cursor.getColumnIndex(MediaStore.Video.Media.RELATIVE_PATH).takeIf { it >= 0 }?.let { cursor.getString(it) }
-            val name = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME).takeIf { it >= 0 }?.let { cursor.getString(it) }
-            if (!relative.isNullOrBlank() && !name.isNullOrBlank()) File("/storage/emulated/0/$relative$name") else null
         }
     }
 
